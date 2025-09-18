@@ -6,7 +6,7 @@ import csx55.threads.Node;
 
 import java.util.logging.*;
 
-public class TCPConnection implements Runnable {
+public class TCPConnection {
 
     public Socket socket;
     public TCPReceiverThread receiver;
@@ -22,13 +22,8 @@ public class TCPConnection implements Runnable {
         this.receiver = new TCPReceiverThread(socket, node);
     }
 
-    @Override
-    public void run() {
-        try {
-            new Thread(receiver).start();
-        } catch (Exception e) {
-            LOG.warning(e.getLocalizedMessage());
-        } 
+    public void startReceiverThread() {
+        new Thread(receiver).start();
     }
 
 }
