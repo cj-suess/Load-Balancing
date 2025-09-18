@@ -30,4 +30,11 @@ public class NodeID {
         return ip + ":" + port;
     }
     
+    public String getIP(){
+        return ip;
+    }
+
+    public int getPort() {
+        return port;
+    }
 }
