@@ -5,4 +5,5 @@ public interface Protocol {
     int REGISTER_RESPONSE = 2;
     int DEREGISTER_REQUEST = 3;
     int DEREGISTER_RESPONSE = 4;
+    int NODE_ID = 5;
 }

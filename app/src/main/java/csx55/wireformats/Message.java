@@ -4,31 +4,34 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-public class Register implements Event, Protocol {
-
+public class Message implements Event {
+    
     public int messageType;
-    public NodeID nodeID;
+    public byte statusCode;
+    public String info;
 
-    public Register(int messageType, NodeID nodeID) {
+    public Message(int messageType, byte statusCode, String info) {
         this.messageType = messageType;
-        this.nodeID = nodeID;
+        this.statusCode = statusCode;
+        this.info = info;
     }
 
     @Override
-    public byte[] getBytes() throws IOException{
+    public byte[] getBytes() throws IOException {
         byte[] encodedData = null;
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dout = new DataOutputStream(baos);
+        
         dout.writeInt(messageType);
-        /* FILL IN REQURED MARSHALING */
-        byte[] ipBytes = nodeID.ip.getBytes();
-        int ipLength = ipBytes.length;
-        dout.writeInt(ipLength);
-        dout.write(ipBytes);
-        dout.writeInt(nodeID.port);
-        /*                           */
+        dout.writeByte(statusCode);
+        byte[] infoBytes = info.getBytes();
+        int infoLength = infoBytes.length;
+        dout.writeInt(infoLength);
+        dout.write(infoBytes);
+
         dout.flush();
         encodedData = baos.toByteArray();
+        
         baos.close();
         dout.close();
         return encodedData;
@@ -36,6 +39,7 @@ public class Register implements Event, Protocol {
 
     @Override
     public int getType() {
-        return Protocol.REGISTER_REQUEST;
+        return messageType;
     }
+    
 }
