@@ -61,8 +61,10 @@ public class ComputeNode implements Node {
         else if(event.getType() == Protocol.MESSAGING_NODES_LIST) {
             log.info("Received connection list from Registry...");
             MessagingNodesList message = (MessagingNodesList) event;
-            connectionList = Collections.unmodifiableList(message.getPeers());
-            connect();
+            if(message.getPeers().size() == 2) {
+                connectionList = Collections.unmodifiableList(message.getPeers());
+                connect();
+            }
         }
     }
 
