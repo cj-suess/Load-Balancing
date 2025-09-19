@@ -6,9 +6,12 @@ import csx55.util.OverlayCreator;
 import csx55.wireformats.Event;
 import csx55.wireformats.Message;
 import csx55.wireformats.NodeID;
+import csx55.wireformats.Overlay;
 import csx55.wireformats.Protocol;
 import csx55.wireformats.Register;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,6 +27,8 @@ public class Registry implements Node {
     private boolean running = true;
 
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
+    private Map<NodeID, List<NodeID>> overlay = new ConcurrentHashMap<>();
+    private Map<NodeID, List<NodeID>> connectionMap = new ConcurrentHashMap<>();
 
     public Registry(int port) {
         this.port = port;
@@ -100,11 +105,29 @@ public class Registry implements Node {
                         log.info("[Registry] Closing registry node...");
                         running = false;
                         break;
+                    case "setup-overlay":
+                        OverlayCreator oc = new OverlayCreator(new ArrayList<>(connections.keySet()));
+                        overlay = oc.buildRing();
+                        connectionMap = oc.filter(overlay);
+                        sendOverlay();
+                        //sendOverlayConnections();
+                        break;
                     default:
                         log.warning("Unknown terminal command...");
                         break;
                 }
             }
+        }
+    }
+
+    private void sendOverlay(){
+        try {
+            Overlay overlayMessage = new Overlay(Protocol.OVERLAY, connections.size(), overlay);
+            for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()){
+                entry.getValue().sender.sendData(overlayMessage.getBytes());
+            }
+        }catch(IOException e) {
+            log.warning("Exception while sending overlay message to compute nodes...." + e.getStackTrace());
         }
     }
 

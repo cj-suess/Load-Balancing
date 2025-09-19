@@ -2,7 +2,7 @@ package csx55.wireformats;
 
 import java.util.Objects;
 
-public class NodeID {
+public class NodeID implements Comparable<NodeID> {
     
     String ip;
     int port;
@@ -26,6 +26,14 @@ public class NodeID {
     }
 
     @Override
+    public int compareTo(NodeID o) {
+        int ip = this.ip.compareTo(o.ip);
+        if(ip != 0) {
+            return ip;
+        } return Integer.compare(this.port, o.port);
+    }
+
+    @Override
     public String toString() {
         return ip + ":" + port;
     }
@@ -37,4 +45,5 @@ public class NodeID {
     public int getPort() {
         return port;
     }
+
 }

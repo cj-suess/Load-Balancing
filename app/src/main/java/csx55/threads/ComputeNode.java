@@ -7,10 +7,14 @@ import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
 import csx55.wireformats.Event;
 import csx55.wireformats.Message;
+import csx55.wireformats.MessagingNodesList;
 import csx55.wireformats.NodeID;
+import csx55.wireformats.Overlay;
 import csx55.wireformats.Protocol;
 
 import java.util.logging.Logger;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -26,6 +30,8 @@ public class ComputeNode implements Node {
 
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
+    private Map<NodeID, List<NodeID>> overlay = Map.of();
+    private volatile List<NodeID> connectionList = List.of();
 
     public ComputeNode(String host, int port) {
         registryNode = new NodeID(host, port);
@@ -42,9 +48,39 @@ public class ComputeNode implements Node {
         }
         else if(event.getType() == Protocol.NODE_ID){
             Message message = (Message) event;
-            String remoteNodeID = message.info;
+            String info = message.info;
+            NodeID node = new NodeID(info.substring(0, info.indexOf(':')), Integer.parseInt(info.substring(info.indexOf(':') + 1)));
             TCPConnection conn = socketToConn.get(socket);
-            openConnections.put(remoteNodeID, conn);
+            connections.put(node, conn);
+            for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()){
+                log.info(entry.toString());
+            }
+        }
+        else if(event.getType() == Protocol.OVERLAY) {
+            Overlay message = (Overlay) event;
+            overlay = Collections.unmodifiableMap(message.overlay);
+        }
+        else if(event.getType() == Protocol.MESSAGING_NODES_LIST) {
+            MessagingNodesList message = (MessagingNodesList) event;
+            connectionList = Collections.unmodifiableList(message.getPeers());
+            connect();
+        }
+    }
+
+    private void connect() {
+        for(NodeID node : connectionList) {
+            try {
+                Socket socket = new Socket(node.getIP(), node.getPort());
+                TCPConnection conn = new TCPConnection(socket, this);
+                socketToConn.put(socket, conn);
+                connections.put(node, conn);
+                conn.startReceiverThread();
+
+                Message idMessage = new Message(Protocol.NODE_ID, (byte)0, nodeID.toString());
+                conn.sender.sendData(idMessage.getBytes());
+            } catch(IOException e) {
+                log.warning("Exception while trying to connect to other compute nodes..." + e.getStackTrace());
+            }
         }
     }
 
