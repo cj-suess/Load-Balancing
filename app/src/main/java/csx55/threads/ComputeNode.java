@@ -11,6 +11,7 @@ import csx55.wireformats.MessagingNodesList;
 import csx55.wireformats.NodeID;
 import csx55.wireformats.Overlay;
 import csx55.wireformats.Protocol;
+import csx55.wireformats.Register;
 
 import java.util.logging.Logger;
 import java.util.Collections;
@@ -26,11 +27,10 @@ public class ComputeNode implements Node {
     private boolean running = true;
 
     private NodeID registryNode;
-    private NodeID nodeID;
+    private NodeID node;
 
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
-    private Map<NodeID, List<NodeID>> overlay = Map.of();
     private volatile List<NodeID> connectionList = List.of();
 
     public ComputeNode(String host, int port) {
@@ -43,10 +43,12 @@ public class ComputeNode implements Node {
             log.warning("Null event received from Event Factory...");
         }
         else if(event.getType() == Protocol.REGISTER_RESPONSE) {
+            log.info("Received register response from Registry...");
             Message message = (Message) event; 
             System.out.println(message.info);
         }
         else if(event.getType() == Protocol.NODE_ID){
+            log.info("Receiving nodeID information...");
             Message message = (Message) event;
             String info = message.info;
             NodeID node = new NodeID(info.substring(0, info.indexOf(':')), Integer.parseInt(info.substring(info.indexOf(':') + 1)));
@@ -56,15 +58,25 @@ public class ComputeNode implements Node {
                 log.info(entry.toString());
             }
         }
-        else if(event.getType() == Protocol.OVERLAY) {
-            Overlay message = (Overlay) event;
-            overlay = Collections.unmodifiableMap(message.overlay);
-        }
         else if(event.getType() == Protocol.MESSAGING_NODES_LIST) {
+            log.info("Received connection list from Registry...");
             MessagingNodesList message = (MessagingNodesList) event;
             connectionList = Collections.unmodifiableList(message.getPeers());
             connect();
         }
+    }
+
+    private void register() {
+        try{
+            Socket socket = new Socket(registryNode.getIP(), registryNode.getPort());
+            TCPConnection registryConn = new TCPConnection(socket, this);
+            Register registerMessage = new Register(Protocol.REGISTER_REQUEST, node);
+            registryConn.startReceiverThread();
+            registryConn.sender.sendData(registerMessage.getBytes());
+        } catch(IOException e) {
+            log.warning("Exception thrown while registering node with Registry..." + e.getStackTrace().toString());
+        }
+
     }
 
     private void connect() {
@@ -76,7 +88,7 @@ public class ComputeNode implements Node {
                 connections.put(node, conn);
                 conn.startReceiverThread();
 
-                Message idMessage = new Message(Protocol.NODE_ID, (byte)0, nodeID.toString());
+                Message idMessage = new Message(Protocol.NODE_ID, (byte)0, this.node.toString());
                 conn.sender.sendData(idMessage.getBytes());
             } catch(IOException e) {
                 log.warning("Exception while trying to connect to other compute nodes..." + e.getStackTrace());
@@ -87,13 +99,12 @@ public class ComputeNode implements Node {
     private void startNode() {
         try {
             serverSocket = new ServerSocket(0);
-            nodeID = new NodeID(InetAddress.getLocalHost().getHostAddress(), serverSocket.getLocalPort());
-            log = Logger.getLogger(ComputeNode.class.getName() + "[" + nodeID.toString() + "]");
-            log.info("Compute node is up and running.\n \tListening on port: " + nodeID.getPort() + "\n" + "\tIP Address: " + nodeID.getIP());
-            //register();
+            node = new NodeID(InetAddress.getLocalHost().getHostAddress(), serverSocket.getLocalPort());
+            log = Logger.getLogger(ComputeNode.class.getName() + "[" + node.toString() + "]");
+            register();
             while(running) {
                 Socket clientSocket = serverSocket.accept();
-                log.info("New connection from: " + nodeID.toString());
+                log.info("New connection from: " + node.toString());
                 TCPConnection conn = new TCPConnection(clientSocket, this);
                 conn.startReceiverThread();
                 socketToConn.put(clientSocket, conn);
@@ -107,7 +118,7 @@ public class ComputeNode implements Node {
 
         LogConfig.init(Level.INFO);
         ComputeNode node = new ComputeNode(args[0], Integer.parseInt(args[1]));
-        new Thread(node::startNode, "Node-" + node.nodeID.toString() + "-Server").start();
+        new Thread(node::startNode, "Node-" + node.toString() + "-Server").start();
         // new Thread(node::readTerminal, "Node-" + node.nodeID + "-Terminal").start();
         
     }

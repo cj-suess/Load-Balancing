@@ -6,9 +6,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import csx55.transport.TCPConnection;
+import csx55.wireformats.EventFactory;
 import csx55.wireformats.NodeID;
+import java.util.logging.*;
 
 public class OverlayCreator {
+
+    private final static Logger log = Logger.getLogger(OverlayCreator.class.getName());
 
     private List<NodeID> nodes;
     private Map<NodeID, List<NodeID>> overlay = new ConcurrentHashMap<>();
@@ -21,6 +25,7 @@ public class OverlayCreator {
     }
 
     public Map<NodeID, List<NodeID>> buildRing() {
+        log.info("Building overlay...");
         int n = nodes.size();
         for(int i = 0; i < n; i++) {
             overlay.put(nodes.get(i), new ArrayList<>());
@@ -31,6 +36,7 @@ public class OverlayCreator {
     }
 
     public Map<NodeID, List<NodeID>> filter(Map<NodeID, List<NodeID>> overlay) {
+        log.info("Filtering overlay...");
         for(Map.Entry<NodeID, List<NodeID>> entry : overlay.entrySet()){
             List<NodeID> filtered = new ArrayList<>();
             for(NodeID id : entry.getValue()){

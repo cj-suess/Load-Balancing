@@ -7,10 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.*;
-
-import javax.xml.crypto.Data;
 
 public class EventFactory {
 
@@ -24,16 +21,24 @@ public class EventFactory {
     public Event createEvent() {
         try(ByteArrayInputStream bais = new ByteArrayInputStream(data); DataInputStream dis = new DataInputStream(bais)) {
 
+            log.info("Received new event...");
             int messageType = dis.readInt();
 
             switch (messageType) {
                 case Protocol.REGISTER_REQUEST:
+                    log.info("\tDecoding data into Register object.");
                     return readRegisterRequest(messageType, dis);
                 case Protocol.REGISTER_RESPONSE:
+                    log.info("\tDecoding data into Message object.");
+                    return readStatusMessage(messageType, dis);
+                case Protocol.NODE_ID:
+                    log.info("\tDecoding data into Message object.");
                     return readStatusMessage(messageType, dis);
                 case Protocol.OVERLAY:
+                    log.info("\tDecoding data into Overlay object.");
                     return readOverlay(messageType, dis);
                 case Protocol.MESSAGING_NODES_LIST:
+                    log.info("\tDecoding data into MessagingNodesList object.");
                     return readMessagingNodesList(messageType, dis);
                 default:
                     break;
@@ -47,7 +52,7 @@ public class EventFactory {
 
     private static MessagingNodesList readMessagingNodesList(int messageType, DataInputStream dis) throws IOException {
         List<NodeID> peers = readPeers(dis);
-        MessagingNodesList nodeListMessage = new MessagingNodesList(messageType, peers);
+        MessagingNodesList nodeListMessage = new MessagingNodesList(peers);
         return nodeListMessage;
     }
 
