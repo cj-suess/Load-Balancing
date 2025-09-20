@@ -60,10 +60,8 @@ public class ComputeNode implements Node {
         else if(event.getType() == Protocol.MESSAGING_NODES_LIST) {
             MessagingNodesList message = (MessagingNodesList) event;
             log.info("Received connection list from Registry..." + "\n\tConnecting to " + message.numConnections + " nodes.");
-            if(message.getPeers().size() == 2) {
-                connectionList = Collections.unmodifiableList(message.getPeers());
-                connect();
-            }
+            connectionList = Collections.unmodifiableList(message.getPeers());
+            connect();
         }
     }
 
@@ -82,7 +80,6 @@ public class ComputeNode implements Node {
 
     private void connect() {
         for(NodeID node : connectionList) {
-            if(node.equals(this.node)){ continue; }
             try {
                 Socket socket = new Socket(node.getIP(), node.getPort());
                 TCPConnection conn = new TCPConnection(socket, this);
