@@ -129,13 +129,11 @@ public class Registry implements Node {
                         break;
                     case "setup-overlay": // add thread pool size
                         if(splitCommand.length > 1){
-                            int numThreads = Integer.parseInt(splitCommand[1]);
-                            OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
-                            overlay = oc.buildRing();
-                            connectionMap = oc.filter(overlay);
-                            sendConnectionMap();
-                            sendThreads(numThreads);
+                            initializeOverlay(splitCommand[1]);
                         }
+                        break;
+                    case "print-connections":
+                        printConnectionMap();
                         break;
                     default:
                         log.warning("Unknown terminal command...");
@@ -143,6 +141,15 @@ public class Registry implements Node {
                 }
             }
         }
+    }
+
+    private void initializeOverlay(String threads) {
+        int numThreads = Integer.parseInt(threads);
+        OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
+        overlay = oc.buildRing();
+        connectionMap = oc.filter(overlay);
+        sendConnectionMap();
+        sendThreads(numThreads);
     }
 
     private void sendThreads(int numThreads) {
@@ -174,6 +181,12 @@ public class Registry implements Node {
             }
         }catch(IOException e) {
             log.warning("Exception while sending connection map to compute nodes..." + e.getStackTrace());
+        }
+    }
+
+    private void printConnectionMap() {
+        for(Map.Entry<NodeID, List<NodeID>> entry : connectionMap.entrySet()){
+            log.info(entry.toString());
         }
     }
 
