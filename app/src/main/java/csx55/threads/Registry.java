@@ -127,7 +127,7 @@ public class Registry implements Node {
                         log.info("[Registry] Closing registry node...");
                         running = false;
                         break;
-                    case "setup-overlay":
+                    case "setup-overlay": // add thread pool size
                         OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
                         overlay = oc.buildRing();
                         connectionMap = oc.filter(overlay);
