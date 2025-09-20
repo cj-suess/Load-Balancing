@@ -10,11 +10,13 @@ public class Overlay implements Event {
     
     public int messageType;
     public int numNodes;
+    public int numConnections;
     public Map<NodeID, List<NodeID>> overlay;
 
-    public Overlay(int messageType, int numNodes, Map<NodeID, List<NodeID>> overlay) {
+    public Overlay(int messageType, int numNodes, int numConnections, Map<NodeID, List<NodeID>> overlay) {
         this.messageType = messageType;
         this.numNodes = numNodes;
+        this.numConnections = numConnections;
         this.overlay = overlay;
     }
 
@@ -31,6 +33,7 @@ public class Overlay implements Event {
         dout.writeInt(messageType);
         /* FILL IN REQURED MARSHALING */
         dout.writeInt(numNodes);
+        dout.writeInt(numConnections);
         writeMappings(dout, overlay);
         /*                           */
         dout.flush();

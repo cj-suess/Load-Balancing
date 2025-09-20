@@ -7,9 +7,11 @@ import java.util.List;
 
 public class MessagingNodesList implements Event {
 
+    public int numConnections;
     List<NodeID> peers;
 
-    public MessagingNodesList(List<NodeID> peers) {
+    public MessagingNodesList(List<NodeID> peers, int numConnections) {
+        this.numConnections = numConnections;
         this.peers = peers;
     }
 
@@ -25,6 +27,7 @@ public class MessagingNodesList implements Event {
         DataOutputStream dout = new DataOutputStream(baos);
         dout.writeInt(Protocol.MESSAGING_NODES_LIST);
         /* FILL IN REQURED MARSHALING */
+        dout.writeInt(numConnections);
         writeNodes(dout, peers);
         /*                           */
         dout.flush();

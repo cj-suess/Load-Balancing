@@ -5,6 +5,7 @@ import java.net.*;
 
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
+import csx55.util.OverlayCreator;
 import csx55.wireformats.Event;
 import csx55.wireformats.Message;
 import csx55.wireformats.MessagingNodesList;
@@ -17,6 +18,7 @@ import java.util.logging.Logger;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
@@ -54,13 +56,10 @@ public class ComputeNode implements Node {
             NodeID node = new NodeID(info.substring(0, info.indexOf(':')), Integer.parseInt(info.substring(info.indexOf(':') + 1)));
             TCPConnection conn = socketToConn.get(socket);
             connections.put(node, conn);
-            for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()){
-                log.info(entry.toString());
-            }
         }
         else if(event.getType() == Protocol.MESSAGING_NODES_LIST) {
-            log.info("Received connection list from Registry...");
             MessagingNodesList message = (MessagingNodesList) event;
+            log.info("Received connection list from Registry..." + "\n\tConnecting to " + message.numConnections + " nodes.");
             if(message.getPeers().size() == 2) {
                 connectionList = Collections.unmodifiableList(message.getPeers());
                 connect();
@@ -83,6 +82,7 @@ public class ComputeNode implements Node {
 
     private void connect() {
         for(NodeID node : connectionList) {
+            if(node.equals(this.node)){ continue; }
             try {
                 Socket socket = new Socket(node.getIP(), node.getPort());
                 TCPConnection conn = new TCPConnection(socket, this);
@@ -106,7 +106,7 @@ public class ComputeNode implements Node {
             register();
             while(running) {
                 Socket clientSocket = serverSocket.accept();
-                log.info("New connection from: " + node.toString());
+                log.info("New connection from: " + clientSocket.getInetAddress().getHostAddress() + ":" + clientSocket.getPort());
                 TCPConnection conn = new TCPConnection(clientSocket, this);
                 conn.startReceiverThread();
                 socketToConn.put(clientSocket, conn);
@@ -116,12 +116,33 @@ public class ComputeNode implements Node {
         }
     }
 
+    private void readTerminal() {
+        try(Scanner scanner = new Scanner(System.in)) {
+            while(true) {
+                String command = scanner.nextLine();
+                switch (command) {
+                    case "print-connections":
+                        printConnections();
+                        break;
+                    default:
+                        break;
+                }
+            }
+        } 
+    }
+
+    private void printConnections() {
+        for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()){
+            log.info(entry.getKey().toString());
+        }
+    }
+
     public static void main(String[] args) {
 
         LogConfig.init(Level.INFO);
         ComputeNode node = new ComputeNode(args[0], Integer.parseInt(args[1]));
         new Thread(node::startNode, "Node-" + node.toString() + "-Server").start();
-        // new Thread(node::readTerminal, "Node-" + node.nodeID + "-Terminal").start();
+        new Thread(node::readTerminal, "Node-" + node.toString() + "-Terminal").start();
         
     }
     

@@ -51,27 +51,29 @@ public class EventFactory {
     }
 
     private static MessagingNodesList readMessagingNodesList(int messageType, DataInputStream dis) throws IOException {
-        List<NodeID> peers = readPeers(dis);
-        MessagingNodesList nodeListMessage = new MessagingNodesList(peers);
+        int numConnections = dis.readInt();
+        List<NodeID> peers = readPeers(dis, numConnections);
+        MessagingNodesList nodeListMessage = new MessagingNodesList(peers, numConnections);
         return nodeListMessage;
     }
 
     private static Overlay readOverlay(int messageType, DataInputStream dis) throws IOException {
         Map<NodeID, List<NodeID>> overlay = new HashMap<>();
         int numNodes = dis.readInt();
+        int numConnections = dis.readInt();
         for(int i = 0; i < numNodes; i++) {
             String ip = readString(dis);
             int port = dis.readInt();
             NodeID nodeID = new NodeID(ip, port);
-            overlay.put(nodeID, readPeers(dis));
+            overlay.put(nodeID, readPeers(dis, numConnections));
         }
-        Overlay overlayMessage = new Overlay(messageType, numNodes, overlay);
+        Overlay overlayMessage = new Overlay(messageType, numNodes, numConnections, overlay);
         return overlayMessage;
     }
 
-    private static List<NodeID> readPeers(DataInputStream dis) throws IOException {
+    private static List<NodeID> readPeers(DataInputStream dis, int numConnections) throws IOException {
         List<NodeID> peers = new ArrayList<>();
-        for(int i = 0; i < 2; i++) {
+        for(int i = 0; i < numConnections; i++) {
             peers.add(createPeer(dis));
         }
         return peers;

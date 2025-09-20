@@ -149,7 +149,8 @@ public class Registry implements Node {
                 NodeID node = entry.getKey();
                 TCPConnection conn = nodeToConnMap.get(node);
                 List<NodeID> peers = entry.getValue();
-                MessagingNodesList instructions = new MessagingNodesList(peers);
+                int numConnections = peers.size();
+                MessagingNodesList instructions = new MessagingNodesList(peers, numConnections);
                 conn.sender.sendData(instructions.getBytes());
             }
         }catch(IOException e) {
