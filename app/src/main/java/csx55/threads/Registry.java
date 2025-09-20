@@ -127,17 +127,44 @@ public class Registry implements Node {
                         log.info("[Registry] Closing registry node...");
                         running = false;
                         break;
-                    case "setup-overlay":
-                        OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
-                        overlay = oc.buildRing();
-                        connectionMap = oc.filter(overlay);
-                        sendConnectionMap();
+                    case "setup-overlay": // add thread pool size
+                        if(splitCommand.length > 1){
+                            initializeOverlay(splitCommand[1]);
+                        }
+                        break;
+                    case "print-connections":
+                        printConnectionMap();
                         break;
                     default:
                         log.warning("Unknown terminal command...");
                         break;
                 }
             }
+        }
+    }
+
+    private void initializeOverlay(String threads) {
+        int numThreads = Integer.parseInt(threads);
+        OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
+        overlay = oc.buildRing();
+        connectionMap = oc.filter(overlay);
+        sendConnectionMap();
+        sendThreads(numThreads);
+    }
+
+    private void sendThreads(int numThreads) {
+        try{
+            log.info("Sending thread count to nodes...");
+            for(Map.Entry<NodeID, List<NodeID>> entry : connectionMap.entrySet()){
+                NodeID node = entry.getKey();
+                TCPConnection conn = nodeToConnMap.get(node);
+                String threads = Integer.toString(numThreads);
+                Message threadMessage = new Message(Protocol.THREADS, (byte) 0, threads);
+                conn.sender.sendData(threadMessage.getBytes());
+            }
+            
+        }catch(IOException e) {
+            log.warning("Exception while sending thread count to nodes..." + e);
         }
     }
 
@@ -154,6 +181,12 @@ public class Registry implements Node {
             }
         }catch(IOException e) {
             log.warning("Exception while sending connection map to compute nodes..." + e.getStackTrace());
+        }
+    }
+
+    private void printConnectionMap() {
+        for(Map.Entry<NodeID, List<NodeID>> entry : connectionMap.entrySet()){
+            log.info(entry.toString());
         }
     }
 
