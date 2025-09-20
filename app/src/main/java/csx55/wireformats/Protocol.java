@@ -9,4 +9,5 @@ public interface Protocol {
     int ID_MESSAGE = 6;
     int OVERLAY = 7;
     int MESSAGING_NODES_LIST = 8;
+    int THREADS = 9;
 }

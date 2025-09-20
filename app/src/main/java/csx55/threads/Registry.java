@@ -128,16 +128,36 @@ public class Registry implements Node {
                         running = false;
                         break;
                     case "setup-overlay": // add thread pool size
-                        OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
-                        overlay = oc.buildRing();
-                        connectionMap = oc.filter(overlay);
-                        sendConnectionMap();
+                        if(splitCommand.length > 1){
+                            int numThreads = Integer.parseInt(splitCommand[1]);
+                            OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
+                            overlay = oc.buildRing();
+                            connectionMap = oc.filter(overlay);
+                            sendConnectionMap();
+                            sendThreads(numThreads);
+                        }
                         break;
                     default:
                         log.warning("Unknown terminal command...");
                         break;
                 }
             }
+        }
+    }
+
+    private void sendThreads(int numThreads) {
+        try{
+            log.info("Sending thread count to nodes...");
+            for(Map.Entry<NodeID, List<NodeID>> entry : connectionMap.entrySet()){
+                NodeID node = entry.getKey();
+                TCPConnection conn = nodeToConnMap.get(node);
+                String threads = Integer.toString(numThreads);
+                Message threadMessage = new Message(Protocol.THREADS, (byte) 0, threads);
+                conn.sender.sendData(threadMessage.getBytes());
+            }
+            
+        }catch(IOException e) {
+            log.warning("Exception while sending thread count to nodes..." + e);
         }
     }
 

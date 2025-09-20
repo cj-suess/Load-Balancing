@@ -25,6 +25,7 @@ public class ComputeNode implements Node {
     private Logger log = Logger.getLogger(this.getClass().getName());
     private ServerSocket serverSocket;
     private boolean running = true;
+    private int numThreads;
 
     private NodeID registryNode;
     private NodeID node;
@@ -60,6 +61,12 @@ public class ComputeNode implements Node {
             log.info("Received connection list from Registry..." + "\n\tConnecting to " + message.numConnections + " nodes.");
             connectionList = Collections.unmodifiableList(message.getPeers());
             connect();
+        }
+        else if(event.getType() == Protocol.THREADS){
+            log.info("Recieving thread count from Registry...");
+            Message message = (Message) event;
+            numThreads = Integer.parseInt(message.info);
+            System.out.println(numThreads);
         }
     }
 
