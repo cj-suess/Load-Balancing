@@ -6,4 +6,7 @@ public interface Protocol {
     int DEREGISTER_REQUEST = 3;
     int DEREGISTER_RESPONSE = 4;
     int NODE_ID = 5;
+    int ID_MESSAGE = 6;
+    int OVERLAY = 7;
+    int MESSAGING_NODES_LIST = 8;
 }
