@@ -1,24 +1,13 @@
 package csx55.threads;
 
-import csx55.transport.TCPConnection;
-import csx55.transport.TCPSender;
-import csx55.util.LogConfig;
-import csx55.util.OverlayCreator;
-import csx55.wireformats.Event;
-import csx55.wireformats.Message;
-import csx55.wireformats.MessagingNodesList;
-import csx55.wireformats.NodeID;
-import csx55.wireformats.Protocol;
-import csx55.wireformats.Register;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.*;
-import java.io.IOException;
+import csx55.transport.*;
+import csx55.util.*;
+import csx55.wireformats.*;
 import java.net.*;
+import java.util.logging.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.io.IOException;
 
 public class Registry implements Node {
 

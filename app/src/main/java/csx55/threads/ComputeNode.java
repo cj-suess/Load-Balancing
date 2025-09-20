@@ -2,23 +2,12 @@ package csx55.threads;
 
 import java.io.IOException;
 import java.net.*;
-
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
-import csx55.wireformats.Event;
-import csx55.wireformats.Message;
-import csx55.wireformats.MessagingNodesList;
-import csx55.wireformats.NodeID;
-import csx55.wireformats.Protocol;
-import csx55.wireformats.Register;
-
-import java.util.logging.Logger;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
+import csx55.wireformats.*;
+import java.util.logging.*;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 
 public class ComputeNode implements Node {
 
@@ -33,6 +22,8 @@ public class ComputeNode implements Node {
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
     private volatile List<NodeID> connectionList = List.of();
+
+
 
     public ComputeNode(String host, int port) {
         registryNode = new NodeID(host, port);
@@ -66,7 +57,7 @@ public class ComputeNode implements Node {
             log.info("Recieving thread count from Registry...");
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);
-            System.out.println(numThreads);
+            log.info("Threads to create: " + numThreads);
         }
     }
 
