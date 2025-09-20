@@ -15,12 +15,14 @@ import java.util.logging.*;
  */
 
 public final class LogConfig {
+    @SuppressWarnings("unused")
     private static final DateTimeFormatter TS =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
                          .withZone(ZoneId.systemDefault());
 
     /** Simple formatter: time, level, thread, class.method, message, and stack trace if present. */
     public static class CompactFormatter extends Formatter {
+        @SuppressWarnings("unused")
         @Override
         public String format(LogRecord r) {
             String src = r.getLoggerName(); // e.g., csx55.overlay.node.MessagingNode[1.2.3.4:5000]

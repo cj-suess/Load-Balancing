@@ -3,10 +3,7 @@ package csx55.util;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import csx55.transport.TCPConnection;
-import csx55.wireformats.EventFactory;
 import csx55.wireformats.NodeID;
 import java.util.logging.*;
 

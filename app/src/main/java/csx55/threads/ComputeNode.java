@@ -5,12 +5,10 @@ import java.net.*;
 
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
-import csx55.util.OverlayCreator;
 import csx55.wireformats.Event;
 import csx55.wireformats.Message;
 import csx55.wireformats.MessagingNodesList;
 import csx55.wireformats.NodeID;
-import csx55.wireformats.Overlay;
 import csx55.wireformats.Protocol;
 import csx55.wireformats.Register;
 

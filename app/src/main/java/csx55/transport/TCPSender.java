@@ -6,6 +6,7 @@ import java.net.*;
 
 public class TCPSender {
 
+    @SuppressWarnings("unused")
     private Socket socket;
     private DataOutputStream dout;
 
