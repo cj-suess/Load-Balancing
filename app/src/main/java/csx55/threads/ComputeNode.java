@@ -2,12 +2,17 @@ package csx55.threads;
 
 import java.io.IOException;
 import java.net.*;
+
+import csx55.hashing.Task;
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
 import csx55.wireformats.*;
 import java.util.logging.*;
 import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ComputeNode implements Node {
 
@@ -15,6 +20,8 @@ public class ComputeNode implements Node {
     private ServerSocket serverSocket;
     private boolean running = true;
     private int numThreads;
+    private AtomicInteger numTasksToComplete = new AtomicInteger(0);
+    private AtomicInteger tasksCompleted = new AtomicInteger(0);
 
     private NodeID registryNode;
     private NodeID node;
@@ -23,6 +30,8 @@ public class ComputeNode implements Node {
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
     private volatile List<NodeID> connectionList = List.of();
 
+    private List<Thread> threadPool = new ArrayList<>();
+    private BlockingQueue<Task> taskQueue = new ArrayBlockingQueue<>(1000);
 
 
     public ComputeNode(String host, int port) {
@@ -54,10 +63,23 @@ public class ComputeNode implements Node {
             connect();
         }
         else if(event.getType() == Protocol.THREADS){
-            log.info("Recieving thread count from Registry...");
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);
-            log.info("Threads to create: " + numThreads);
+            log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
+            createThreadPool(numThreads);
+        }
+    }
+
+    private void createThreadPool(int numThreads) {
+        for(int i = 0; i < numThreads; i++){
+            Thread t = new Thread(() -> {
+                // while tasksCompleted != numTasksToComplete
+                    // grab task from queue
+                    // process task
+                    // update tasksCompleted
+            });
+            t.start();
+            threadPool.add(t);
         }
     }
 
