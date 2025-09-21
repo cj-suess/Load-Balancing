@@ -20,6 +20,7 @@ public class ComputeNode implements Node {
     private ServerSocket serverSocket;
     private boolean running = true;
     private int numThreads;
+    private AtomicInteger currRoundNum = new AtomicInteger();
     private AtomicInteger numTasksToComplete = new AtomicInteger(0);
     private AtomicInteger tasksCompleted = new AtomicInteger(0);
 
@@ -67,6 +68,14 @@ public class ComputeNode implements Node {
             numThreads = Integer.parseInt(message.info);
             log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
             createThreadPool(numThreads);
+        }
+    }
+
+    private void createTasks(){
+        Random rand = new Random();
+        for(int i = 0; i < rand.nextInt(999) + 1; i++){
+            Task task = new Task(node.getIP(), node.getPort(), currRoundNum.get(), i); // finish later
+            taskQueue.add(task);
         }
     }
 
