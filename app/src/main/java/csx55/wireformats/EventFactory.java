@@ -39,6 +39,11 @@ public class EventFactory {
                 case Protocol.MESSAGING_NODES_LIST:
                     log.info("\tDecoding data into MessagingNodesList object.");
                     return readMessagingNodesList(messageType, dis);
+                case Protocol.TASK_INITIATE:
+                    log.info("\tDecoding data into a TaskInitiate object....");
+                    int numRounds = dis.readInt();
+                    TaskInitiate ti = new TaskInitiate(messageType, numRounds);
+                    return ti;
                 default:
                     break;
             }

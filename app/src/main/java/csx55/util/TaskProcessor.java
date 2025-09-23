@@ -1,12 +1,13 @@
 package csx55.util;
 
+import java.util.logging.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import csx55.hashing.Task;
@@ -14,9 +15,11 @@ import csx55.wireformats.NodeID;
 
 public class TaskProcessor {
 
+    private Logger log = Logger.getLogger(this.getClass().getName());
+
     private NodeID node;
     private List<Thread> threadPool = new ArrayList<>();
-    private BlockingQueue<Task> taskQueue = new ArrayBlockingQueue<>(1000);
+    private BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
     private int taskSum = 0;
     private int totalNumRegisteredNodes;
     private int numThreads;
@@ -75,5 +78,9 @@ public class TaskProcessor {
 
     public int getTaskSum() {
         return taskSum;
+    }
+
+    public void printTasks(){
+        log.info("Total number of tasks created: " + String.valueOf(taskQueue.size()));
     }
 }

@@ -66,6 +66,7 @@ public class ComputeNode implements Node {
             TaskInitiate ti = (TaskInitiate) event;
             log.info("Received task initiate from Registry with " + ti.numRounds + " rounds...");
             tp.createTasks(ti.numRounds);
+            tp.printTasks();
             // send message with tp.getSumTask()
         }
     }
