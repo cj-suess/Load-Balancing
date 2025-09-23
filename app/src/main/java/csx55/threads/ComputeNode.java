@@ -56,6 +56,11 @@ public class ComputeNode implements Node {
             connectionList = Collections.unmodifiableList(message.getPeers());
             connect();
         }
+        else if(event.getType() == Protocol.TOTAL_NUM_NODES){
+            Message message = (Message) event;
+            totalNumRegisteredNodes = Integer.parseInt(message.info);
+            log.info("Received the total number of nodes in the network...." + "\n\tTotal number of nodes: " + totalNumRegisteredNodes);
+        }
         else if(event.getType() == Protocol.THREADS){
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);

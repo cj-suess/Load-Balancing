@@ -155,6 +155,22 @@ public class Registry implements Node {
         connectionMap = oc.filter(overlay);
         sendConnectionMap();
         sendThreads(numThreads);
+        sendTotalNumConnections(openConnections.size());
+    }
+
+    private void sendTotalNumConnections(int totalNumNodes) {
+        try {
+            log.info("Sending total number of registered nodes to each node...");
+            for(Map.Entry<NodeID, List<NodeID>> entry : connectionMap.entrySet()){
+                NodeID node = entry.getKey();
+                TCPConnection conn = nodeToConnMap.get(node);
+                String nodes = Integer.toString(totalNumNodes);
+                Message threadMessage = new Message(Protocol.TOTAL_NUM_NODES, (byte) 0, nodes);
+                conn.sender.sendData(threadMessage.getBytes());
+            }
+        } catch(IOException e) {
+            log.warning("Exception while sending total number of nodes to each node..." + e.getStackTrace());
+        }
     }
 
     private void sendThreads(int numThreads) {

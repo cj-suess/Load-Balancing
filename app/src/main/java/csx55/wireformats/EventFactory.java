@@ -31,6 +31,7 @@ public class EventFactory {
                 case Protocol.REGISTER_RESPONSE:
                 case Protocol.NODE_ID:
                 case Protocol.THREADS:
+                case Protocol.TOTAL_NUM_NODES:
                     log.info("\tDecoding data into Message object.");
                     return readStatusMessage(messageType, dis);
                 case Protocol.OVERLAY:

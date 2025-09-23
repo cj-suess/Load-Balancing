@@ -34,21 +34,23 @@ public class TaskProcessor {
         createThreadPool(numThreads);
     }
 
-    // wait until completedNodes.size() == totalNumRegisteredNodes
-        // clear set
-    // compute numTasksToComplete -> totalNumTasks / totalNumRegisteredNodes
-    // compute taskExcess -> taskQueue.size() - numTasksToComplete
-    // wait for completedNodes.size() == totalNumRegisteredNodes
-            // if excess is positive
-                // send excess to neighbors
-                // set numTasksToComplete to taskQueue.size()
-                // send READY message
-            // if excess is negative
-                // wait for more tasks until taskQueue.size() == numTasksToComplete
-                // send READY message
-        // when all nodes are ready
-            // process tasks 
-            // send TASK_COMPLETE message
+    // processTasks() {
+        // wait until completedNodes.size() == totalNumRegisteredNodes
+            // clear set
+        // compute numTasksToComplete -> totalNumTasks / totalNumRegisteredNodes
+        // compute taskExcess -> taskQueue.size() - numTasksToComplete
+        // wait for completedNodes.size() == totalNumRegisteredNodes
+                // if excess is positive
+                    // send excess to neighbors
+                    // set numTasksToComplete to taskQueue.size()
+                    // send READY message
+                // if excess is negative
+                    // wait for more tasks until taskQueue.size() == numTasksToComplete
+                    // send READY message
+            // when all nodes are ready
+                // process tasks 
+                // send TASK_COMPLETE message
+    // }
     
     
     public void createTasks(int totalNumRounds){
