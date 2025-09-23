@@ -29,9 +29,8 @@ public class EventFactory {
                     log.info("\tDecoding data into Register object.");
                     return readRegisterRequest(messageType, dis);
                 case Protocol.REGISTER_RESPONSE:
-                    log.info("\tDecoding data into Message object.");
-                    return readStatusMessage(messageType, dis);
                 case Protocol.NODE_ID:
+                case Protocol.THREADS:
                     log.info("\tDecoding data into Message object.");
                     return readStatusMessage(messageType, dis);
                 case Protocol.OVERLAY:

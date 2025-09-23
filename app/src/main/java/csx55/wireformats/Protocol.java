@@ -10,4 +10,8 @@ public interface Protocol {
     int OVERLAY = 7;
     int MESSAGING_NODES_LIST = 8;
     int THREADS = 9;
+    int TASK_INITIATE = 10;
+    int TASK_COMPLETE = 11;
+    int TASK_EXCESS = 12;
+    int READY = 13;
 }
