@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.*;
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
+import csx55.util.TaskProcessor;
 import csx55.wireformats.*;
 import java.util.logging.*;
 import java.util.*;
@@ -15,6 +16,7 @@ public class ComputeNode implements Node {
     private ServerSocket serverSocket;
     private boolean running = true;
     private int numThreads;
+    private int totalNumRegisteredNodes;
 
     private NodeID registryNode;
     private NodeID node;
@@ -22,6 +24,8 @@ public class ComputeNode implements Node {
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
     private volatile List<NodeID> connectionList = List.of();
+
+    private TaskProcessor tp;
 
 
     public ComputeNode(String host, int port) {
@@ -52,16 +56,23 @@ public class ComputeNode implements Node {
             connectionList = Collections.unmodifiableList(message.getPeers());
             connect();
         }
+        else if(event.getType() == Protocol.TOTAL_NUM_NODES){
+            Message message = (Message) event;
+            totalNumRegisteredNodes = Integer.parseInt(message.info);
+            log.info("Received the total number of nodes in the network...." + "\n\tTotal number of nodes: " + totalNumRegisteredNodes);
+        }
         else if(event.getType() == Protocol.THREADS){
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);
             log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
-            // create TaskProcessor instance
-            // notify other nodes of tasks created
+            tp = new TaskProcessor(node, totalNumRegisteredNodes, numThreads);
         }
         else if(event.getType() == Protocol.TASK_INITIATE){
             TaskInitiate ti = (TaskInitiate) event;
             log.info("Received task initiate from Registry with " + ti.numRounds + " rounds...");
+            tp.createTasks(ti.numRounds);
+            tp.printTasks();
+            // send message with tp.getSumTask()
         }
     }
 

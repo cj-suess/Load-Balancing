@@ -31,6 +31,7 @@ public class EventFactory {
                 case Protocol.REGISTER_RESPONSE:
                 case Protocol.NODE_ID:
                 case Protocol.THREADS:
+                case Protocol.TOTAL_NUM_NODES:
                     log.info("\tDecoding data into Message object.");
                     return readStatusMessage(messageType, dis);
                 case Protocol.OVERLAY:
@@ -39,6 +40,11 @@ public class EventFactory {
                 case Protocol.MESSAGING_NODES_LIST:
                     log.info("\tDecoding data into MessagingNodesList object.");
                     return readMessagingNodesList(messageType, dis);
+                case Protocol.TASK_INITIATE:
+                    log.info("\tDecoding data into a TaskInitiate object....");
+                    int numRounds = dis.readInt();
+                    TaskInitiate ti = new TaskInitiate(messageType, numRounds);
+                    return ti;
                 default:
                     break;
             }
