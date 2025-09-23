@@ -27,9 +27,7 @@ public class Registry implements Node {
     
     @Override
     public void onEvent(Event event, Socket socket) {
-
         TCPSender sender = getSender(openConnections, socket);
-
         if(event.getType() == Protocol.REGISTER_REQUEST) {
             log.info("Register request detected. Checking status...");
             Register node = (Register) event;
@@ -40,7 +38,6 @@ public class Registry implements Node {
                 sendRegisterFailure(node, sender);
             }
         }
-        
     }
 
     private void sendRegisterSuccess(Register node, TCPSender sender, Socket socket) {
@@ -121,6 +118,13 @@ public class Registry implements Node {
                             initializeOverlay(splitCommand[1]);
                         }
                         break;
+                    case "start":
+                        int numRounds = 0;
+                        if(splitCommand.length > 1) {
+                            numRounds = Integer.parseInt(splitCommand[1]);
+                            sendTaskInitiate(numRounds);
+                        }
+                        break;
                     case "print-connections":
                         printConnectionMap();
                         break;
@@ -129,6 +133,18 @@ public class Registry implements Node {
                         break;
                 }
             }
+        }
+    }
+
+    private void sendTaskInitiate(int numRounds){
+        try {
+            log.info("Sending task initate command to messaging nodes...");
+            TaskInitiate ti = new TaskInitiate(Protocol.TASK_INITIATE, numRounds);
+            for(TCPConnection conn : openConnections) {
+                conn.sender.sendData(ti.getBytes());
+            }
+        } catch(IOException e) {
+            log.warning("Exception while sending initiate task message to node..." + e.getStackTrace());
         }
     }
 

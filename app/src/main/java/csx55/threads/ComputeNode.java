@@ -2,17 +2,12 @@ package csx55.threads;
 
 import java.io.IOException;
 import java.net.*;
-
-import csx55.hashing.Task;
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
 import csx55.wireformats.*;
 import java.util.logging.*;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ComputeNode implements Node {
 
@@ -20,9 +15,6 @@ public class ComputeNode implements Node {
     private ServerSocket serverSocket;
     private boolean running = true;
     private int numThreads;
-    private AtomicInteger currRoundNum = new AtomicInteger();
-    private AtomicInteger numTasksToComplete = new AtomicInteger(0);
-    private AtomicInteger tasksCompleted = new AtomicInteger(0);
 
     private NodeID registryNode;
     private NodeID node;
@@ -30,9 +22,6 @@ public class ComputeNode implements Node {
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
     private volatile List<NodeID> connectionList = List.of();
-
-    private List<Thread> threadPool = new ArrayList<>();
-    private BlockingQueue<Task> taskQueue = new ArrayBlockingQueue<>(1000);
 
 
     public ComputeNode(String host, int port) {
@@ -67,28 +56,12 @@ public class ComputeNode implements Node {
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);
             log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
-            createThreadPool(numThreads);
+            // create TaskProcessor instance
+            // notify other nodes of tasks created
         }
-    }
-
-    private void createTasks(){
-        Random rand = new Random();
-        for(int i = 0; i < rand.nextInt(999) + 1; i++){
-            Task task = new Task(node.getIP(), node.getPort(), currRoundNum.get(), i); // finish later
-            taskQueue.add(task);
-        }
-    }
-
-    private void createThreadPool(int numThreads) {
-        for(int i = 0; i < numThreads; i++){
-            Thread t = new Thread(() -> {
-                // while tasksCompleted != numTasksToComplete
-                    // grab task from queue
-                    // process task
-                    // update tasksCompleted
-            });
-            t.start();
-            threadPool.add(t);
+        else if(event.getType() == Protocol.TASK_INITIATE){
+            TaskInitiate ti = (TaskInitiate) event;
+            log.info("Received task initiate from Registry with " + ti.numRounds + " rounds...");
         }
     }
 
