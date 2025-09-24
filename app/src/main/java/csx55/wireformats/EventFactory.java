@@ -45,6 +45,9 @@ public class EventFactory {
                     int numRounds = dis.readInt();
                     TaskInitiate ti = new TaskInitiate(messageType, numRounds);
                     return ti;
+                case Protocol.TASK_SUM:
+                    log.info("\tDecoding data into a TaskSum object....");
+                    return readTaskSum(messageType, dis);
                 default:
                     break;
             }
@@ -53,6 +56,14 @@ public class EventFactory {
             log.warning("Exception while creating event..." + e.getMessage());
         }
         return null;
+    }
+
+    private static TaskSum readTaskSum(int messageType, DataInputStream dis) throws IOException {
+        int taskSum = dis.readInt();
+        String ip = readString(dis);
+        int port = dis.readInt();
+        NodeID nodeId = new NodeID(ip, port);
+        return new TaskSum(messageType, taskSum, nodeId);
     }
 
     private static MessagingNodesList readMessagingNodesList(int messageType, DataInputStream dis) throws IOException {

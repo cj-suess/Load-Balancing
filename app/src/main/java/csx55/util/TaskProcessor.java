@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import csx55.hashing.Task;
@@ -25,7 +26,8 @@ public class TaskProcessor {
     private int numThreads;
     private AtomicInteger numTasksToComplete = new AtomicInteger(0);
     private AtomicInteger tasksCompleted = new AtomicInteger(0);
-    private Set<NodeID> completedNodes = ConcurrentHashMap.newKeySet();
+    public Set<NodeID> completedNodes = ConcurrentHashMap.newKeySet();
+    public AtomicInteger networkTaskSum = new AtomicInteger();
 
     public TaskProcessor(NodeID node, int totalNumRegisteredNodes, int numThreads) {
         this.node = node;

@@ -67,12 +67,54 @@ public class ComputeNode implements Node {
             log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
             tp = new TaskProcessor(node, totalNumRegisteredNodes, numThreads);
         }
+        else if(event.getType() == Protocol.TASK_SUM){
+            TaskSum message = (TaskSum) event;
+            if (tp.completedNodes.add(message.nodeId)) {
+                tp.networkTaskSum.addAndGet(message.taskSum);
+                relayTaskSum(message, socket);
+            }
+            if(tp.completedNodes.size() == totalNumRegisteredNodes) {
+                printNetworkTaskSum();
+                tp.completedNodes.clear();
+            }
+        }
         else if(event.getType() == Protocol.TASK_INITIATE){
             TaskInitiate ti = (TaskInitiate) event;
             log.info("Received task initiate from Registry with " + ti.numRounds + " rounds...");
             tp.createTasks(ti.numRounds);
             tp.printTasks();
-            // send message with tp.getSumTask()
+            sendTaskSum();
+        }
+    }
+    
+    private void relayTaskSum(TaskSum message, Socket incoming){
+        for(Map.Entry<Socket, TCPConnection> entry : socketToConn.entrySet()){
+            Socket socket = entry.getKey();
+            if(!socket.equals(incoming)){
+                try {
+                    entry.getValue().sender.sendData(message.getBytes());
+                } catch(IOException e) {
+                    log.warning("Exception while relaying task sum message..." + e.getStackTrace());
+                }
+            }
+        }
+    }
+
+    private void printNetworkTaskSum(){
+        log.info("Total number of tasks in the network: " + Integer.toString(tp.networkTaskSum.get()));
+    }
+
+    private void sendTaskSum(){ // need to add relaying
+        try{
+            log.info("Sending task sum to other nodes...");
+            int taskSum = tp.getTaskSum();
+            TaskSum taskMessage = new TaskSum(Protocol.TASK_SUM, taskSum, node);
+            for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()) {
+                entry.getValue().sender.sendData(taskMessage.getBytes());
+            }
+            if (tp.completedNodes.add(node)) tp.networkTaskSum.addAndGet(taskSum);
+        } catch(IOException e) {
+            log.warning("Exception while send task sum to other nodes..." + e.getStackTrace());
         }
     }
 
@@ -132,6 +174,8 @@ public class ComputeNode implements Node {
                     case "print-connections":
                         printConnections();
                         break;
+                    case "print-total-tasks":
+                        printNetworkTaskSum();
                     default:
                         break;
                 }

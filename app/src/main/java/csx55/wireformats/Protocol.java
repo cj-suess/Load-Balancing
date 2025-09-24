@@ -13,6 +13,7 @@ public interface Protocol {
     int TASK_INITIATE = 10;
     int TASK_COMPLETE = 11;
     int TASK_EXCESS = 12;
-    int READY = 13;
-    int TOTAL_NUM_NODES = 14;
+    int TASK_SUM = 13;
+    int READY = 14;
+    int TOTAL_NUM_NODES = 15;
 }
