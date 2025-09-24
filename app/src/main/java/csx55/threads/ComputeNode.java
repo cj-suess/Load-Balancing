@@ -75,7 +75,7 @@ public class ComputeNode implements Node {
             if(tp.completedNodes.size() == tp.totalNumRegisteredNodes.get()) {
                 printNetworkTaskSum();
                 tp.completedNodes.clear();
-                tp.processTasks();
+                tp.computeLoadBalancing();
             }
         }
         else if(event.getType() == Protocol.TASK_INITIATE){
@@ -107,7 +107,7 @@ public class ComputeNode implements Node {
     private void sendTaskSum(){ // need to add relaying
         try{
             log.info("Sending task sum to other nodes...");
-            int taskSum = tp.getTaskSum();
+            int taskSum = tp.getTotalTasks();
             TaskSum taskMessage = new TaskSum(Protocol.TASK_SUM, taskSum, node);
             for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()) {
                 entry.getValue().sender.sendData(taskMessage.getBytes());
