@@ -8,7 +8,6 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import csx55.hashing.Task;
@@ -22,24 +21,22 @@ public class TaskProcessor {
     private List<Thread> threadPool = new ArrayList<>();
     private BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
     private int taskSum = 0;
-    private int totalNumRegisteredNodes;
     private int numThreads;
     private AtomicInteger numTasksToComplete = new AtomicInteger(0);
     private AtomicInteger tasksCompleted = new AtomicInteger(0);
     public Set<NodeID> completedNodes = ConcurrentHashMap.newKeySet();
-    public AtomicInteger networkTaskSum = new AtomicInteger();
+    public AtomicInteger networkTaskSum = new AtomicInteger(0);
+    public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
 
-    public TaskProcessor(NodeID node, int totalNumRegisteredNodes, int numThreads) {
+    public TaskProcessor(NodeID node, int numThreads) {
         this.node = node;
-        this.totalNumRegisteredNodes = totalNumRegisteredNodes;
         this.numThreads = numThreads;
         createThreadPool(numThreads);
     }
 
-    // processTasks() {
-        // wait until completedNodes.size() == totalNumRegisteredNodes
-            // clear set
-        // compute numTasksToComplete -> totalNumTasks / totalNumRegisteredNodes
+    public void processTasks() {
+        computeFairShare();
+        log.info("Number of tasks to complete per node: " + numTasksToComplete.get());
         // compute taskExcess -> taskQueue.size() - numTasksToComplete
         // wait for completedNodes.size() == totalNumRegisteredNodes
                 // if excess is positive
@@ -52,7 +49,11 @@ public class TaskProcessor {
             // when all nodes are ready
                 // process tasks 
                 // send TASK_COMPLETE message
-    // }
+    }
+
+    private void computeFairShare(){
+        numTasksToComplete.getAndSet(networkTaskSum.get()/totalNumRegisteredNodes.get());
+    }
     
     
     public void createTasks(int totalNumRounds){

@@ -16,7 +16,6 @@ public class ComputeNode implements Node {
     private ServerSocket serverSocket;
     private boolean running = true;
     private int numThreads;
-    private int totalNumRegisteredNodes;
 
     private NodeID registryNode;
     private NodeID node;
@@ -58,14 +57,14 @@ public class ComputeNode implements Node {
         }
         else if(event.getType() == Protocol.TOTAL_NUM_NODES){
             Message message = (Message) event;
-            totalNumRegisteredNodes = Integer.parseInt(message.info);
-            log.info("Received the total number of nodes in the network...." + "\n\tTotal number of nodes: " + totalNumRegisteredNodes);
+            tp.totalNumRegisteredNodes.getAndSet(Integer.parseInt(message.info));
+            log.info("Received the total number of nodes in the network...." + "\n\tTotal number of nodes: " + tp.totalNumRegisteredNodes.get());
         }
         else if(event.getType() == Protocol.THREADS){
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);
             log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
-            tp = new TaskProcessor(node, totalNumRegisteredNodes, numThreads);
+            tp = new TaskProcessor(node, numThreads);
         }
         else if(event.getType() == Protocol.TASK_SUM){
             TaskSum message = (TaskSum) event;
@@ -73,9 +72,10 @@ public class ComputeNode implements Node {
                 tp.networkTaskSum.addAndGet(message.taskSum);
                 relayTaskSum(message, socket);
             }
-            if(tp.completedNodes.size() == totalNumRegisteredNodes) {
+            if(tp.completedNodes.size() == tp.totalNumRegisteredNodes.get()) {
                 printNetworkTaskSum();
                 tp.completedNodes.clear();
+                tp.processTasks();
             }
         }
         else if(event.getType() == Protocol.TASK_INITIATE){
