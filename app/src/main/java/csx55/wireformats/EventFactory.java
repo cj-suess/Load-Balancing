@@ -31,6 +31,7 @@ public class EventFactory {
 
             switch (messageType) {
                 case Protocol.REGISTER_REQUEST:
+                case Protocol.READY:
                     log.info("\tDecoding data into Register object.");
                     return readRegisterRequest(messageType, dis);
                 case Protocol.REGISTER_RESPONSE:

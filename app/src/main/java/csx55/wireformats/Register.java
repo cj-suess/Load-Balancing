@@ -36,6 +36,6 @@ public class Register implements Event, Protocol {
 
     @Override
     public int getType() {
-        return Protocol.REGISTER_REQUEST;
+        return messageType;
     }
 }

@@ -14,7 +14,7 @@ public class TaskExcess implements Event {
 
     int messageType;
     int numTasks;
-    BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
+    public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
 
     public TaskExcess(int messageType, int numTasks, BlockingQueue<Task> taskQueue) {
         this.messageType = messageType;

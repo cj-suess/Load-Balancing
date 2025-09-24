@@ -2,13 +2,17 @@ package csx55.threads;
 
 import java.io.IOException;
 import java.net.*;
+
+import csx55.hashing.Task;
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
 import csx55.util.TaskProcessor;
 import csx55.wireformats.*;
 import java.util.logging.*;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class ComputeNode implements Node {
 
@@ -76,6 +80,10 @@ public class ComputeNode implements Node {
                 printNetworkTaskSum();
                 tp.completedNodes.clear();
                 tp.computeLoadBalancing();
+                if(tp.excessTasks.get() > 0) {
+                    sendTaskExcess();
+                    sendReadyMessage(socket);
+                }
             }
         }
         else if(event.getType() == Protocol.TASK_INITIATE){
@@ -84,6 +92,75 @@ public class ComputeNode implements Node {
             tp.createTasks(ti.numRounds);
             tp.printTasks();
             sendTaskSum();
+        }
+        else if(event.getType() == Protocol.TASK_EXCESS) {
+            log.info("Received task excess message from another node...");
+            TaskExcess message = (TaskExcess) event;
+            if(tp.excessTasks.get() < 0) {
+                while(tp.taskQueue.size() != tp.numTasksToComplete.get()){
+                    if(message.taskQueue.isEmpty()){ break; }
+                    tp.taskQueue.add(message.taskQueue.poll());
+                }
+            }
+            if(tp.taskQueue.size() == tp.numTasksToComplete.get()){
+                tp.completedNodes.add(node);
+                sendReadyMessage(socket);
+            }
+            if(!message.taskQueue.isEmpty()){
+                relayTaskExcess(message, socket);
+            }
+        }
+        else if(event.getType() == Protocol.READY) {
+            Register message = (Register) event;
+            tp.completedNodes.add(message.nodeID);
+            if(tp.completedNodes.size() == tp.totalNumRegisteredNodes.get()){
+                // process tasks
+                log.info("Number of tasks in queue to process: " + tp.taskQueue.size());
+            }
+        }
+    }
+
+    private void relayTaskExcess(TaskExcess message, Socket incoming) {
+        for(Map.Entry<Socket, TCPConnection> entry : socketToConn.entrySet()){
+            Socket socket = entry.getKey();
+            if(!socket.equals(incoming)){
+                try {
+                    entry.getValue().sender.sendData(message.getBytes());
+                } catch(IOException e) {
+                    log.warning("Exception while relaying task excess message..." + e.getStackTrace());
+                }
+            }
+        }
+    }
+
+    private void sendReadyMessage(Socket incoming) {
+        log.info("Sending ready message...");
+        Register message = new Register(Protocol.READY, node);
+        for(Map.Entry<Socket, TCPConnection> entry : socketToConn.entrySet()){
+            Socket socket = entry.getKey();
+            if(!socket.equals(incoming)){
+                try {
+                    entry.getValue().sender.sendData(message.getBytes());
+                } catch(IOException e) {
+                    log.warning("Exception while relaying task sum message..." + e.getStackTrace());
+                }
+            }
+        }
+    }
+
+    private void sendTaskExcess() {
+        try{
+            log.info("Sending task excess to other nodes...");
+            BlockingQueue<Task> taskExcessQueue = new LinkedBlockingQueue<>();
+            for(int i = 0; i < tp.excessTasks.get(); i++) {
+                taskExcessQueue.add(tp.taskQueue.poll());
+            }
+            TaskExcess taskExcess = new TaskExcess(Protocol.TASK_EXCESS, taskExcessQueue.size(), taskExcessQueue);
+            for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()) {
+                entry.getValue().sender.sendData(taskExcess.getBytes());
+            }
+        } catch(IOException e) {
+            log.warning("Exception while send task sum to other nodes..." + e.getStackTrace());
         }
     }
     

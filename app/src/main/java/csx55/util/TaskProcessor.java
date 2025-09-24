@@ -19,11 +19,11 @@ public class TaskProcessor {
 
     private NodeID node;
     private List<Thread> threadPool = new ArrayList<>();
-    private BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
+    public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
     public Set<NodeID> completedNodes = ConcurrentHashMap.newKeySet();
     private int totalTasks = 0;
     private int numThreads;
-    private AtomicInteger numTasksToComplete = new AtomicInteger(0);
+    public AtomicInteger numTasksToComplete = new AtomicInteger(0);
     private AtomicInteger tasksCompleted = new AtomicInteger(0);
     public AtomicInteger networkTaskSum = new AtomicInteger(0);
     public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
@@ -39,9 +39,9 @@ public class TaskProcessor {
             // send excess to neighbors
             // set numTasksToComplete to taskQueue.size()
             // send READY message
-        // if excess is negative
-            // wait for more tasks until taskQueue.size() == numTasksToComplete
-            // send READY message
+    // if excess is negative
+        // wait for more tasks until taskQueue.size() == numTasksToComplete
+        // send READY message
     // when all nodes are ready
         // process tasks 
         // send TASK_COMPLETE message
