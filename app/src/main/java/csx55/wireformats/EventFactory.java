@@ -7,7 +7,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.*;
+
+import csx55.hashing.Task;
 
 public class EventFactory {
 
@@ -43,11 +48,13 @@ public class EventFactory {
                 case Protocol.TASK_INITIATE:
                     log.info("\tDecoding data into a TaskInitiate object....");
                     int numRounds = dis.readInt();
-                    TaskInitiate ti = new TaskInitiate(messageType, numRounds);
-                    return ti;
+                    return new TaskInitiate(messageType, numRounds);
                 case Protocol.TASK_SUM:
                     log.info("\tDecoding data into a TaskSum object....");
                     return readTaskSum(messageType, dis);
+                case Protocol.TASK_EXCESS:
+                    log.info("\tDecoding data into a TaskExcess object....");
+                    return readTaskExcess(messageType, dis);
                 default:
                     break;
             }
@@ -56,6 +63,27 @@ public class EventFactory {
             log.warning("Exception while creating event..." + e.getMessage());
         }
         return null;
+    }
+
+    private static TaskExcess readTaskExcess(int messageType, DataInputStream dis) throws IOException {
+        int numTasks = dis.readInt();
+        BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
+        readQueue(dis, taskQueue, numTasks);
+        return new TaskExcess(messageType, numTasks, taskQueue);
+    }
+
+    private static void readQueue(DataInputStream dis, BlockingQueue<Task> taskQueue, int numTasks) throws IOException{
+        for(int i = 0; i < numTasks; i++) {
+            taskQueue.add(readTask(dis));
+        }
+    }
+
+    private static Task readTask(DataInputStream dis) throws IOException {
+        String ip = readString(dis);
+        int port = dis.readInt();
+        int roundNumber = dis.readInt();
+        int payload = dis.readInt();
+        return new Task(ip, port, roundNumber, payload);
     }
 
     private static TaskSum readTaskSum(int messageType, DataInputStream dis) throws IOException {

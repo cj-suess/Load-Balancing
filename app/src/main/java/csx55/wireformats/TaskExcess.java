@@ -13,7 +13,14 @@ public class TaskExcess implements Event {
     private Logger log = Logger.getLogger(this.getClass().getName());
 
     int messageType;
+    int numTasks;
     BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
+
+    public TaskExcess(int messageType, int numTasks, BlockingQueue<Task> taskQueue) {
+        this.messageType = messageType;
+        this.numTasks = numTasks;
+        this.taskQueue = taskQueue;
+    }
 
     @Override
     public int getType() {
@@ -27,6 +34,7 @@ public class TaskExcess implements Event {
         DataOutputStream dout = new DataOutputStream(baos);
         dout.writeInt(messageType);
         /* FILL IN REQURED MARSHALING */
+        dout.writeInt(taskQueue.size());
         writeQueue(dout, taskQueue);
         /*                           */
         dout.flush();
@@ -51,9 +59,6 @@ public class TaskExcess implements Event {
         dout.writeInt(task.getPort());
         dout.writeInt(task.getRoundNumber());
         dout.writeInt(task.getPayload());
-        dout.writeLong(task.getTimestamp());
-        dout.writeLong(Thread.currentThread().getId());
-        dout.writeInt(task.getNonce());
     }
 
     private void writeString(DataOutputStream dout, String ip) throws IOException {
