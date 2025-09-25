@@ -19,14 +19,16 @@ public class TaskProcessor {
 
     private NodeID node;
     private List<Thread> threadPool = new ArrayList<>();
-    private BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
-    private int taskSum = 0;
+    public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
+    public Set<NodeID> completedTaskSumNodes = ConcurrentHashMap.newKeySet();
+    public Set<NodeID> readyNodes = ConcurrentHashMap.newKeySet();
+    private int totalTasks = 0;
     private int numThreads;
-    private AtomicInteger numTasksToComplete = new AtomicInteger(0);
+    public AtomicInteger numTasksToComplete = new AtomicInteger(0);
     private AtomicInteger tasksCompleted = new AtomicInteger(0);
-    public Set<NodeID> completedNodes = ConcurrentHashMap.newKeySet();
     public AtomicInteger networkTaskSum = new AtomicInteger(0);
     public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
+    public AtomicInteger excessTasks = new AtomicInteger(0);
 
     public TaskProcessor(NodeID node, int numThreads) {
         this.node = node;
@@ -34,21 +36,14 @@ public class TaskProcessor {
         createThreadPool(numThreads);
     }
 
-    public void processTasks() {
+    public void computeLoadBalancing() {
         computeFairShare();
-        log.info("Number of tasks to complete per node: " + numTasksToComplete.get());
-        // compute taskExcess -> taskQueue.size() - numTasksToComplete
-        // wait for completedNodes.size() == totalNumRegisteredNodes
-                // if excess is positive
-                    // send excess to neighbors
-                    // set numTasksToComplete to taskQueue.size()
-                    // send READY message
-                // if excess is negative
-                    // wait for more tasks until taskQueue.size() == numTasksToComplete
-                    // send READY message
-            // when all nodes are ready
-                // process tasks 
-                // send TASK_COMPLETE message
+        computeExcess();
+        log.info("Number of tasks to complete: " + numTasksToComplete.get() + "\n\tExcess tasks to disperse: " + excessTasks.get());
+    }
+
+    private void computeExcess() {
+        excessTasks.getAndSet(totalTasks - numTasksToComplete.get());
     }
 
     private void computeFairShare(){
@@ -64,8 +59,8 @@ public class TaskProcessor {
                 Task task = new Task(node.getIP(), node.getPort(), i, j);
                 taskQueue.add(task);
             }
-            taskSum += tasks;
         }
+        totalTasks = taskQueue.size();
     }
 
     private void createThreadPool(int numThreads) {
@@ -81,8 +76,8 @@ public class TaskProcessor {
         }
     }
 
-    public int getTaskSum() {
-        return taskSum;
+    public int getTotalTasks() {
+        return totalTasks;
     }
 
     public void printTasks(){

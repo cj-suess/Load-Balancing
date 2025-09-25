@@ -2,13 +2,17 @@ package csx55.threads;
 
 import java.io.IOException;
 import java.net.*;
+
+import csx55.hashing.Task;
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
 import csx55.util.TaskProcessor;
 import csx55.wireformats.*;
 import java.util.logging.*;
 import java.util.*;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class ComputeNode implements Node {
 
@@ -68,14 +72,14 @@ public class ComputeNode implements Node {
         }
         else if(event.getType() == Protocol.TASK_SUM){
             TaskSum message = (TaskSum) event;
-            if (tp.completedNodes.add(message.nodeId)) {
+            if (tp.completedTaskSumNodes.add(message.nodeId)) {
                 tp.networkTaskSum.addAndGet(message.taskSum);
                 relayTaskSum(message, socket);
             }
-            if(tp.completedNodes.size() == tp.totalNumRegisteredNodes.get()) {
+            if(tp.completedTaskSumNodes.size() == tp.totalNumRegisteredNodes.get()) {
                 printNetworkTaskSum();
-                tp.completedNodes.clear();
-                tp.processTasks();
+                tp.completedTaskSumNodes.clear();
+                tp.computeLoadBalancing();
             }
         }
         else if(event.getType() == Protocol.TASK_INITIATE){
@@ -86,6 +90,7 @@ public class ComputeNode implements Node {
             sendTaskSum();
         }
     }
+
     
     private void relayTaskSum(TaskSum message, Socket incoming){
         for(Map.Entry<Socket, TCPConnection> entry : socketToConn.entrySet()){
@@ -104,15 +109,15 @@ public class ComputeNode implements Node {
         log.info("Total number of tasks in the network: " + Integer.toString(tp.networkTaskSum.get()));
     }
 
-    private void sendTaskSum(){ // need to add relaying
+    private void sendTaskSum(){
         try{
             log.info("Sending task sum to other nodes...");
-            int taskSum = tp.getTaskSum();
+            int taskSum = tp.getTotalTasks();
             TaskSum taskMessage = new TaskSum(Protocol.TASK_SUM, taskSum, node);
             for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()) {
                 entry.getValue().sender.sendData(taskMessage.getBytes());
             }
-            if (tp.completedNodes.add(node)) tp.networkTaskSum.addAndGet(taskSum);
+            if (tp.completedTaskSumNodes.add(node)) tp.networkTaskSum.addAndGet(taskSum);
         } catch(IOException e) {
             log.warning("Exception while send task sum to other nodes..." + e.getStackTrace());
         }
