@@ -2,12 +2,15 @@ package csx55.wireformats;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.*;
+
+import csx55.hashing.Task;
 
 public class EventFactory {
 
@@ -45,7 +48,7 @@ public class EventFactory {
                 case Protocol.TASK_REQUEST:
                     return readTaskRequest(messageType, dis);
                 case Protocol.TASK_RESPONSE:
-                    // return readTaskResponse(messageType, dis);
+                    return readTaskResponse(messageType, dis);
                 default:
                     break;
             }
@@ -54,6 +57,25 @@ public class EventFactory {
             log.warning("Exception while creating event..." + e.getMessage());
         }
         return null;
+    }
+
+    private static TaskResponse readTaskResponse(int messageType, DataInputStream dis) throws IOException {
+        String ip = readString(dis);
+        int port = dis.readInt();
+        int tasksSize = dis.readInt();
+        return new TaskResponse(messageType, new NodeID(ip, port), readTaskList(dis, tasksSize));
+    }
+
+    private static List<Task> readTaskList(DataInputStream dis, int tasksSize) throws IOException {
+        List<Task> tasks = new ArrayList<>();
+        for(int i = 0; i < tasksSize; i++) {
+            String ip = readString(dis);
+            int port = dis.readInt();
+            int roundNumber = dis.readInt();
+            int payload = dis.readInt();
+            tasks.add(new Task(ip, port, roundNumber, payload));
+        }
+        return tasks;
     }
 
     private static TaskRequest readTaskRequest(int messageType, DataInputStream dis) throws IOException {
