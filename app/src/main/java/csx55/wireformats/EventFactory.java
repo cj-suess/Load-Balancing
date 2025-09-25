@@ -7,12 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.*;
-
-import csx55.hashing.Task;
 
 public class EventFactory {
 
@@ -32,30 +27,23 @@ public class EventFactory {
             switch (messageType) {
                 case Protocol.REGISTER_REQUEST:
                 case Protocol.READY:
-                    //log.info("\tDecoding data into Register object.");
                     return readRegisterRequest(messageType, dis);
                 case Protocol.REGISTER_RESPONSE:
                 case Protocol.NODE_ID:
                 case Protocol.THREADS:
                 case Protocol.TOTAL_NUM_NODES:
-                    //log.info("\tDecoding data into Message object.");
                     return readStatusMessage(messageType, dis);
                 case Protocol.OVERLAY:
-                    //log.info("\tDecoding data into Overlay object.");
                     return readOverlay(messageType, dis);
                 case Protocol.MESSAGING_NODES_LIST:
-                    //log.info("\tDecoding data into MessagingNodesList object.");
                     return readMessagingNodesList(messageType, dis);
                 case Protocol.TASK_INITIATE:
-                    //log.info("\tDecoding data into a TaskInitiate object....");
                     int numRounds = dis.readInt();
                     return new TaskInitiate(messageType, numRounds);
                 case Protocol.TASK_SUM:
-                    //log.info("\tDecoding data into a TaskSum object....");
                     return readTaskSum(messageType, dis);
-                // case Protocol.TASK_EXCESS:
-                //     //log.info("\tDecoding data into a TaskExcess object....");
-                //     return readTaskExcess(messageType, dis);
+                case Protocol.TASK_REQUEST:
+                    return readTaskRequest(messageType, dis);
                 default:
                     break;
             }
@@ -66,26 +54,12 @@ public class EventFactory {
         return null;
     }
 
-    // private static TaskExcess readTaskExcess(int messageType, DataInputStream dis) throws IOException {
-    //     int numTasks = dis.readInt();
-    //     BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
-    //     readQueue(dis, taskQueue, numTasks);
-    //     return new TaskExcess(messageType, numTasks, taskQueue);
-    // }
-
-    // private static void readQueue(DataInputStream dis, BlockingQueue<Task> taskQueue, int numTasks) throws IOException{
-    //     for(int i = 0; i < numTasks; i++) {
-    //         taskQueue.add(readTask(dis));
-    //     }
-    // }
-
-    // private static Task readTask(DataInputStream dis) throws IOException {
-    //     String ip = readString(dis);
-    //     int port = dis.readInt();
-    //     int roundNumber = dis.readInt();
-    //     int payload = dis.readInt();
-    //     return new Task(ip, port, roundNumber, payload);
-    // }
+    private static TaskRequest readTaskRequest(int messageType, DataInputStream dis) throws IOException {
+        String ip = readString(dis);
+        int port = dis.readInt();
+        int numTasksRequested = dis.readInt();
+        return new TaskRequest(messageType, new NodeID(ip, port), numTasksRequested);
+    }
 
     private static TaskSum readTaskSum(int messageType, DataInputStream dis) throws IOException {
         int taskSum = dis.readInt();

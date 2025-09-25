@@ -4,8 +4,8 @@ import java.util.Objects;
 
 public class NodeID implements Comparable<NodeID> {
     
-    String ip;
-    int port;
+    private final String ip;
+    private final int port;
 
     public NodeID(String ip, int port){
         this.ip = ip;
