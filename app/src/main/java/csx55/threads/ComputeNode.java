@@ -3,16 +3,13 @@ package csx55.threads;
 import java.io.IOException;
 import java.net.*;
 
-import csx55.hashing.Task;
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
 import csx55.util.TaskProcessor;
 import csx55.wireformats.*;
 import java.util.logging.*;
 import java.util.*;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 
 public class ComputeNode implements Node {
 
@@ -27,6 +24,7 @@ public class ComputeNode implements Node {
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
     private volatile List<NodeID> connectionList = List.of();
+    private volatile List<NodeID> sortedPeers = List.of();
 
     private TaskProcessor tp;
 
@@ -68,7 +66,7 @@ public class ComputeNode implements Node {
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);
             log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
-            tp = new TaskProcessor(node, numThreads);
+            tp = new TaskProcessor(this, numThreads);
         }
         else if(event.getType() == Protocol.TASK_SUM){
             TaskSum message = (TaskSum) event;

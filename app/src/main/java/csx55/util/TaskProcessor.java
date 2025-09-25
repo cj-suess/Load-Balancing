@@ -11,13 +11,14 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import csx55.hashing.Task;
+import csx55.threads.ComputeNode;
 import csx55.wireformats.NodeID;
 
 public class TaskProcessor {
 
     private Logger log = Logger.getLogger(this.getClass().getName());
 
-    private NodeID node;
+    private ComputeNode node;
     private List<Thread> threadPool = new ArrayList<>();
     public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
     public Set<NodeID> completedTaskSumNodes = ConcurrentHashMap.newKeySet();
@@ -30,7 +31,7 @@ public class TaskProcessor {
     public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
     public AtomicInteger excessTasks = new AtomicInteger(0);
 
-    public TaskProcessor(NodeID node, int numThreads) {
+    public TaskProcessor(ComputeNode node, int numThreads) {
         this.node = node;
         this.numThreads = numThreads;
         createThreadPool(numThreads);
