@@ -9,8 +9,8 @@ public class NodeIDTest {
         String ip = "134:56:23:12";
         int port = 8080;
         NodeID nodeID = new NodeID(ip, port);
-        assert nodeID.ip.equals(ip);
-        assert nodeID.port == port;
+        assert nodeID.getIP().equals(ip);
+        assert nodeID.getPort() == port;
     }
     
 }

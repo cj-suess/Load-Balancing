@@ -44,6 +44,8 @@ public class EventFactory {
                     return readTaskSum(messageType, dis);
                 case Protocol.TASK_REQUEST:
                     return readTaskRequest(messageType, dis);
+                case Protocol.TASK_RESPONSE:
+                    // return readTaskResponse(messageType, dis);
                 default:
                     break;
             }
