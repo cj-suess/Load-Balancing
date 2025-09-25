@@ -4,21 +4,21 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-public class TaskSum implements Event {
+public class TaskRequest implements Event {
+    
+    public int messageType;
+    public NodeID requesterId;
+    public int numTasksRequested;
 
-    int messageType;
-    public int taskSum;
-    public NodeID nodeId;
-
-    public TaskSum(int messageType, int taskSum, NodeID nodeId) {
+    public TaskRequest(int messageType, NodeID requesterId, int numTasksRequested){
         this.messageType = messageType;
-        this.taskSum = taskSum;
-        this.nodeId = nodeId;
+        this.requesterId = requesterId;
+        this.numTasksRequested = numTasksRequested;
     }
 
     @Override
     public int getType() {
-        return Protocol.TASK_SUM;
+        return Protocol.TASK_REQUEST;
     }
 
     @Override
@@ -28,12 +28,12 @@ public class TaskSum implements Event {
         DataOutputStream dout = new DataOutputStream(baos);
         dout.writeInt(messageType);
         /* FILL IN REQURED MARSHALING */
-        dout.writeInt(taskSum);
-        byte[] ipBytes = nodeId.getIP().getBytes();
+        byte[] ipBytes = requesterId.getIP().getBytes();
         int ipLength = ipBytes.length;
         dout.writeInt(ipLength);
         dout.write(ipBytes);
-        dout.writeInt(nodeId.getPort());
+        dout.writeInt(requesterId.getPort());
+        dout.writeInt(numTasksRequested);
         /*                           */
         dout.flush();
         encodedData = baos.toByteArray();
@@ -41,5 +41,6 @@ public class TaskSum implements Event {
         dout.close();
         return encodedData;
     }
-    
+
+
 }

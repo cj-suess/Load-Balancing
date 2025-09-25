@@ -21,11 +21,11 @@ public class Register implements Event, Protocol {
         DataOutputStream dout = new DataOutputStream(baos);
         dout.writeInt(messageType);
         /* FILL IN REQURED MARSHALING */
-        byte[] ipBytes = nodeID.ip.getBytes();
+        byte[] ipBytes = nodeID.getIP().getBytes();
         int ipLength = ipBytes.length;
         dout.writeInt(ipLength);
         dout.write(ipBytes);
-        dout.writeInt(nodeID.port);
+        dout.writeInt(nodeID.getPort());
         /*                           */
         dout.flush();
         encodedData = baos.toByteArray();

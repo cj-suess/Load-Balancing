@@ -39,7 +39,7 @@ public class MessagingNodesList implements Event {
 
     private void writeNodes(DataOutputStream dout, List<NodeID> peers) throws IOException {
         for(NodeID node : peers) {
-            byte[] ipBytes = node.ip.getBytes();
+            byte[] ipBytes = node.getIP().getBytes();
             int ipLength = ipBytes.length;
             dout.writeInt(ipLength);
             dout.write(ipBytes);
