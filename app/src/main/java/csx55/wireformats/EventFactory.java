@@ -26,35 +26,35 @@ public class EventFactory {
     public Event createEvent() {
         try(ByteArrayInputStream bais = new ByteArrayInputStream(data); DataInputStream dis = new DataInputStream(bais)) {
 
-            log.info("Received new event...");
+            //log.info("Received new event...");
             int messageType = dis.readInt();
 
             switch (messageType) {
                 case Protocol.REGISTER_REQUEST:
                 case Protocol.READY:
-                    log.info("\tDecoding data into Register object.");
+                    //log.info("\tDecoding data into Register object.");
                     return readRegisterRequest(messageType, dis);
                 case Protocol.REGISTER_RESPONSE:
                 case Protocol.NODE_ID:
                 case Protocol.THREADS:
                 case Protocol.TOTAL_NUM_NODES:
-                    log.info("\tDecoding data into Message object.");
+                    //log.info("\tDecoding data into Message object.");
                     return readStatusMessage(messageType, dis);
                 case Protocol.OVERLAY:
-                    log.info("\tDecoding data into Overlay object.");
+                    //log.info("\tDecoding data into Overlay object.");
                     return readOverlay(messageType, dis);
                 case Protocol.MESSAGING_NODES_LIST:
-                    log.info("\tDecoding data into MessagingNodesList object.");
+                    //log.info("\tDecoding data into MessagingNodesList object.");
                     return readMessagingNodesList(messageType, dis);
                 case Protocol.TASK_INITIATE:
-                    log.info("\tDecoding data into a TaskInitiate object....");
+                    //log.info("\tDecoding data into a TaskInitiate object....");
                     int numRounds = dis.readInt();
                     return new TaskInitiate(messageType, numRounds);
                 case Protocol.TASK_SUM:
-                    log.info("\tDecoding data into a TaskSum object....");
+                    //log.info("\tDecoding data into a TaskSum object....");
                     return readTaskSum(messageType, dis);
                 case Protocol.TASK_EXCESS:
-                    log.info("\tDecoding data into a TaskExcess object....");
+                    //log.info("\tDecoding data into a TaskExcess object....");
                     return readTaskExcess(messageType, dis);
                 default:
                     break;

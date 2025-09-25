@@ -72,17 +72,16 @@ public class ComputeNode implements Node {
         }
         else if(event.getType() == Protocol.TASK_SUM){
             TaskSum message = (TaskSum) event;
-            if (tp.completedNodes.add(message.nodeId)) {
+            if (tp.completedTaskSumNodes.add(message.nodeId)) {
                 tp.networkTaskSum.addAndGet(message.taskSum);
                 relayTaskSum(message, socket);
             }
-            if(tp.completedNodes.size() == tp.totalNumRegisteredNodes.get()) {
+            if(tp.completedTaskSumNodes.size() == tp.totalNumRegisteredNodes.get()) {
                 printNetworkTaskSum();
-                tp.completedNodes.clear();
+                tp.completedTaskSumNodes.clear();
                 tp.computeLoadBalancing();
                 if(tp.excessTasks.get() > 0) {
                     sendTaskExcess();
-                    sendReadyMessage(socket);
                 }
             }
         }
@@ -96,31 +95,47 @@ public class ComputeNode implements Node {
         else if(event.getType() == Protocol.TASK_EXCESS) {
             log.info("Received task excess message from another node...");
             TaskExcess message = (TaskExcess) event;
+            BlockingQueue<Task> copy = new LinkedBlockingQueue<>(message.taskQueue);
             if(tp.excessTasks.get() < 0) {
-                while(tp.taskQueue.size() != tp.numTasksToComplete.get()){
-                    if(message.taskQueue.isEmpty()){ break; }
-                    tp.taskQueue.add(message.taskQueue.poll());
+                while(copy.size() != tp.numTasksToComplete.get()){
+                    if(copy.isEmpty()){ break; }
+                    tp.taskQueue.add(copy.poll());
                 }
             }
-            if(tp.taskQueue.size() == tp.numTasksToComplete.get()){
-                tp.completedNodes.add(node);
+            if(tp.taskQueue.size() >= tp.numTasksToComplete.get() && tp.ready.compareAndSet(false, true)){
+                tp.readyNodes.add(node);
                 sendReadyMessage(socket);
             }
-            if(!message.taskQueue.isEmpty()){
-                relayTaskExcess(message, socket);
+            if(!copy.isEmpty()){
+                if(tp.taskQueue.size() == tp.numTasksToComplete.get() || tp.ready.get()){
+                    log.info("Taking the remaining tasks from message...");
+                    tp.taskQueue.addAll(copy);
+                } else {
+                    BlockingQueue<Task> remainingExcessTasks = new LinkedBlockingQueue<>(copy);
+                    TaskExcess forwardExcessTask = new TaskExcess(Protocol.TASK_EXCESS, remainingExcessTasks.size(), remainingExcessTasks);
+                    relayTaskExcess(forwardExcessTask, socket);
+                }
             }
         }
         else if(event.getType() == Protocol.READY) {
+            log.info("Received ready message from another node...");
             Register message = (Register) event;
-            tp.completedNodes.add(message.nodeID);
-            if(tp.completedNodes.size() == tp.totalNumRegisteredNodes.get()){
+            tp.readyNodes.add(message.nodeID);
+            if(tp.readyNodes.size() == tp.totalNumRegisteredNodes.get()){
                 // process tasks
                 log.info("Number of tasks in queue to process: " + tp.taskQueue.size());
             }
         }
     }
 
+    private void printReadyNodes() {
+        for(NodeID node : tp.readyNodes){
+            log.info(node.toString());
+        }
+    }
+
     private void relayTaskExcess(TaskExcess message, Socket incoming) {
+        log.info("Relaying excess tasks...");
         for(Map.Entry<Socket, TCPConnection> entry : socketToConn.entrySet()){
             Socket socket = entry.getKey();
             if(!socket.equals(incoming)){
@@ -181,7 +196,7 @@ public class ComputeNode implements Node {
         log.info("Total number of tasks in the network: " + Integer.toString(tp.networkTaskSum.get()));
     }
 
-    private void sendTaskSum(){ // need to add relaying
+    private void sendTaskSum(){
         try{
             log.info("Sending task sum to other nodes...");
             int taskSum = tp.getTotalTasks();
@@ -189,7 +204,7 @@ public class ComputeNode implements Node {
             for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()) {
                 entry.getValue().sender.sendData(taskMessage.getBytes());
             }
-            if (tp.completedNodes.add(node)) tp.networkTaskSum.addAndGet(taskSum);
+            if (tp.completedTaskSumNodes.add(node)) tp.networkTaskSum.addAndGet(taskSum);
         } catch(IOException e) {
             log.warning("Exception while send task sum to other nodes..." + e.getStackTrace());
         }
@@ -253,6 +268,8 @@ public class ComputeNode implements Node {
                         break;
                     case "print-total-tasks":
                         printNetworkTaskSum();
+                    case "print-ready-nodes":
+                        printReadyNodes();
                     default:
                         break;
                 }
