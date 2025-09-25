@@ -21,8 +21,8 @@ public class EventFactoryTest {
         assertTrue(event instanceof Register);
         Register decoded = (Register) event;
         assertEquals(messageType, decoded.messageType);
-        assertEquals(ip, decoded.nodeID.ip);
-        assertEquals(port, decoded.nodeID.port);
+        assertEquals(ip, decoded.nodeID.getIP());
+        assertEquals(port, decoded.nodeID.getPort());
     }
     
 }
