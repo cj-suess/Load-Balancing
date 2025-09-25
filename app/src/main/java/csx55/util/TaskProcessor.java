@@ -8,7 +8,6 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import csx55.hashing.Task;
@@ -30,24 +29,12 @@ public class TaskProcessor {
     public AtomicInteger networkTaskSum = new AtomicInteger(0);
     public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
     public AtomicInteger excessTasks = new AtomicInteger(0);
-    public AtomicBoolean ready = new AtomicBoolean(false);
 
     public TaskProcessor(NodeID node, int numThreads) {
         this.node = node;
         this.numThreads = numThreads;
         createThreadPool(numThreads);
     }
-
-    // if excess is positive
-            // send excess to neighbors
-            // set numTasksToComplete to taskQueue.size()
-            // send READY message
-    // if excess is negative
-        // wait for more tasks until taskQueue.size() == numTasksToComplete
-        // send READY message
-    // when all nodes are ready
-        // process tasks 
-        // send TASK_COMPLETE message
 
     public void computeLoadBalancing() {
         computeFairShare();
