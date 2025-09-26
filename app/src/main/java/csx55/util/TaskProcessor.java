@@ -2,31 +2,34 @@ package csx55.util;
 
 import java.util.logging.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import csx55.hashing.Miner;
 import csx55.hashing.Task;
-import csx55.threads.ComputeNode;
 import csx55.wireformats.NodeID;
 
 public class TaskProcessor {
 
     private Logger log = Logger.getLogger(this.getClass().getName());
-
-    private ComputeNode node;
     private NodeID id;
 
-    private List<Thread> threadPool = new ArrayList<>();
+    private List<Thread> threadPool = Collections.synchronizedList(new ArrayList<>());
     public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
     public Set<NodeID> completedTaskSumNodes = ConcurrentHashMap.newKeySet();
 
+    public enum Phase {LOCAL, LOAD_BALANCE, DONE};
+    public AtomicReference<Phase> phase = new AtomicReference<>(Phase.LOCAL);
+    public AtomicInteger tasksBeingMined = new AtomicInteger(0);
+    public AtomicInteger pendingRequests = new AtomicInteger(0);
     private int totalTasks = 0;
     private int numThreads;
     public AtomicInteger numTasksToComplete = new AtomicInteger(0);
@@ -35,8 +38,7 @@ public class TaskProcessor {
     public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
     public AtomicInteger excessTasks = new AtomicInteger(0);
 
-    public TaskProcessor(ComputeNode node, int numThreads, NodeID id) {
-        this.node = node;
+    public TaskProcessor(int numThreads, NodeID id) {
         this.numThreads = numThreads;
         this.id = id;
     }
@@ -48,18 +50,21 @@ public class TaskProcessor {
     }
 
     private void computeExcess() {
-        excessTasks.getAndSet(totalTasks - numTasksToComplete.get());
+        excessTasks.set(totalTasks - numTasksToComplete.get());
     }
 
     private void computeFairShare(){
-        numTasksToComplete.getAndSet(networkTaskSum.get()/totalNumRegisteredNodes.get());
-    }
-    
-    public void processTasks(){
-        createThreadPool(numThreads);
-        for(Thread t : threadPool) {
-            t.start();
+        if(totalNumRegisteredNodes.get() != 0){
+            numTasksToComplete.getAndSet(networkTaskSum.get()/totalNumRegisteredNodes.get());
         }
+    }
+
+    public int remainingTasksNeeded() {
+        return Math.max(0, numTasksToComplete.get() - (tasksCompleted.get() + tasksBeingMined.get()));
+    }
+
+    private boolean stop(){
+        return phase.get() == Phase.DONE || (remainingTasksNeeded() == 0 && taskQueue.isEmpty() && tasksBeingMined.get() == 0 && pendingRequests.get() == 0);
     }
     
     public void createTasks(int totalNumRounds){
@@ -74,33 +79,29 @@ public class TaskProcessor {
         totalTasks = taskQueue.size();
     }
 
-    private void createThreadPool(int numThreads) {
+    public void createThreadPool(int numThreads) {
         for(int i = 0; i < numThreads; i++){
             Thread thread = new Thread(() -> {
                 try{
-                    while(true){
-                        int completedTasks = tasksCompleted.get();
-                        if(completedTasks == numTasksToComplete.get()){
-                            break;
+                    Miner miner = new Miner();
+                    while(!stop()) {
+                        Task t = taskQueue.poll(100, TimeUnit.MILLISECONDS);
+                        if(t==null) {
+                            continue;
                         }
-                        if(tasksCompleted.compareAndSet(completedTasks, completedTasks + 1)){
-                            Task task = taskQueue.take();
-                            Miner miner = new Miner();
-                            miner.mine(task);
-
-                            long newCount = completedTasks + 1;
-                            log.info("Tasks completed: " + newCount + "/" + numTasksToComplete.get());
-
-                            if(newCount == numTasksToComplete.get()){
-                                log.info("All required tasks processed...");
-
-                            }
+                        try {
+                            tasksBeingMined.incrementAndGet();
+                            miner.mine(t);
+                            tasksCompleted.incrementAndGet();
+                        } finally {
+                            tasksBeingMined.decrementAndGet();
                         }
                     }
-                }catch(InterruptedException e) {
+                } catch(InterruptedException e) {
                     log.warning("Exception while processing tasks" + e.getStackTrace());
                 }
             });
+            thread.start();
             threadPool.add(thread);
         }
     }
@@ -109,7 +110,7 @@ public class TaskProcessor {
         return totalTasks;
     }
 
-    public void printTasks(){
-        log.info("Total number of tasks created: " + String.valueOf(taskQueue.size()));
+    public void printTasksInQueue(){
+        log.info("Total number of tasks in queue: " + String.valueOf(taskQueue.size()));
     }
 }

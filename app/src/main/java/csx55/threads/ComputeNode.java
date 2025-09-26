@@ -7,6 +7,7 @@ import csx55.hashing.Task;
 import csx55.transport.TCPConnection;
 import csx55.util.LogConfig;
 import csx55.util.TaskProcessor;
+import csx55.util.TaskProcessor.Phase;
 import csx55.wireformats.*;
 import java.util.logging.*;
 import java.util.*;
@@ -67,7 +68,7 @@ public class ComputeNode implements Node {
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);
             log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
-            processor = new TaskProcessor(this, numThreads, myNode);
+            processor = new TaskProcessor(numThreads, myNode);
         }
         else if(event.getType() == Protocol.TASK_SUM){
             TaskSum message = (TaskSum) event;
@@ -79,9 +80,10 @@ public class ComputeNode implements Node {
                 printNetworkTaskSum();
                 processor.completedTaskSumNodes.clear();
                 processor.computeLoadBalancing();
-                processor.processTasks();
-                if(processor.excessTasks.get() < 0){
-                    initiateTaskRequest(-(processor.excessTasks.get()));
+                processor.phase.set(Phase.LOCAL);
+                processor.createThreadPool(numThreads);
+                while(processor.phase.get() != Phase.DONE) {
+                    checkForLoadBalancing(processor);
                 }
             }
         }
@@ -89,45 +91,61 @@ public class ComputeNode implements Node {
             TaskInitiate ti = (TaskInitiate) event;
             log.info("Received task initiate from Registry with " + ti.numRounds + " rounds...");
             processor.createTasks(ti.numRounds);
-            processor.printTasks();
+            processor.printTasksInQueue();
             sendTaskSum();
         }
         else if(event.getType() == Protocol.TASK_REQUEST) {
+            log.info("Received task request...");
             TaskRequest request = (TaskRequest) event;
             handleTaskRequest(request, socket);
         }
         else if(event.getType() == Protocol.TASK_RESPONSE) {
+            log.info("Received task repsonse...");
             TaskResponse response = (TaskResponse) event;
             handleTaskResponse(response, socket);
         }
     }
 
+    private void checkForLoadBalancing(TaskProcessor processor) {
+        if(processor.phase.get() == Phase.LOCAL && processor.taskQueue.isEmpty() && processor.remainingTasksNeeded() > 0) {
+            if(processor.phase.compareAndSet(Phase.LOCAL, Phase.LOAD_BALANCE)) {
+                processor.pendingRequests.incrementAndGet();
+                initiateTaskRequest(processor.remainingTasksNeeded());
+            }
+        }
+    }
+
     private void handleTaskResponse(TaskResponse response, Socket incoming){
         try {
+            processor.pendingRequests.decrementAndGet();
             NodeID requester = response.requesterId;
             if(requester.equals(myNode)){ // this is for me 
                 log.info("Received response with " + response.tasks.size() + " tasks.");
-                if(response.tasks.size() == 0){
-                    Thread.sleep(1000); // wait a second to retry
-                    initiateTaskRequest(-(processor.excessTasks.get()));
-                    return;
+                if(processor.phase.compareAndSet(Phase.LOAD_BALANCE, Phase.LOCAL)) {
+                    processor.taskQueue.addAll(response.tasks);
                 }
-                processor.excessTasks.addAndGet(response.tasks.size());
-                processor.taskQueue.addAll(response.tasks);
-                log.info("Added tasks. New excess: " + processor.excessTasks.get());
-
                 // ask for more if needed
-                if(processor.excessTasks.get() < 0) {
-                    initiateTaskRequest(-(processor.excessTasks.get()));
+                if(processor.remainingTasksNeeded() > 0) {
+                    if(processor.phase.compareAndSet(Phase.LOCAL, Phase.LOAD_BALANCE)) {
+                        initiateTaskRequest(processor.remainingTasksNeeded());
+                    }
+                }
+                if(done()){
+                    log.info("Setting phase to DONE...");
+                    processor.phase.set(Phase.DONE);
                 }
             } else {
                 log.info("Forwarding message...");
                 forwardMessage(response.getBytes(), incoming);
             }
-        }catch(IOException | InterruptedException e) {
+        }catch(IOException e) {
             log.info("Exception while handling task response..." + e.getStackTrace());
             Thread.currentThread().interrupt();
         }
+    }
+
+    private boolean done() {
+        return processor.remainingTasksNeeded() == 0 && processor.taskQueue.isEmpty() && processor.tasksBeingMined.get() == 0 && processor.pendingRequests.get() == 0;
     }
 
     private void handleTaskRequest(TaskRequest request, Socket incoming){
@@ -136,31 +154,30 @@ public class ComputeNode implements Node {
             TaskResponse response;
             List<Task> tasks = new ArrayList<>();
             NodeID requester = request.requesterId;
+            int neededTasks = processor.remainingTasksNeeded();
+            int availableToSend = Math.max(0, processor.taskQueue.size() - neededTasks);
+            int tasksToSend = Math.min(request.numTasksRequested, availableToSend);
 
-            if(requester.equals(myNode)){
-                log.warning("This is my own request. No node has any tasks to give or are busy processing...");
-                Thread.sleep(1000); // wait a second to retry
-                initiateTaskRequest(-(processor.excessTasks.get()));
-            }
-
-            boolean doneProcessing = (processor.tasksCompleted.get() >= processor.numTasksToComplete.get()) && !processor.taskQueue.isEmpty();
-
-            if(doneProcessing) {
+            if(processor.remainingTasksNeeded() == 0) {
                 log.info("Can fulfill request for " + request.requesterId);
-                int excessTasks = Math.min(request.numTasksRequested, processor.taskQueue.size());
-                for(int i = 0; i < excessTasks; i++) {
+                for(int i = 0; i < tasksToSend; i++) {
                     Task task = processor.taskQueue.poll();
                     if(task != null) {
                         tasks.add(task);
                     }
                 }
                 response = new TaskResponse(Protocol.TASK_RESPONSE, requester, tasks);
-                forwardMessage(response.getBytes(), incoming);
+                TCPConnection requestConn = connections.get(requester);
+                if(requestConn != null) {
+                    requestConn.sender.sendData(response.getBytes());
+                } else {
+                    forwardMessage(response.getBytes(), incoming);
+                }
             } else {
                 log.info("Cannot fulfill request at this time. Forwarding request.");
                 forwardMessage(request.getBytes(), incoming);
             }
-        } catch(InterruptedException | IOException e) {
+        } catch(IOException e) {
             log.warning("Exception while handling task request..." + e.getStackTrace());
         }
     }
@@ -207,7 +224,7 @@ public class ComputeNode implements Node {
         }
     }
 
-    private void printNetworkTaskSum(){
+    public void printNetworkTaskSum(){
         log.info("Total number of tasks in the network: " + Integer.toString(processor.networkTaskSum.get()));
     }
 
@@ -286,6 +303,9 @@ public class ComputeNode implements Node {
                         break;
                     case "print-total-tasks":
                         printNetworkTaskSum();
+                        break;
+                    case "print-tasks-in-queue":
+                        processor.printTasksInQueue();
                         break;
                     default:
                         break;
