@@ -52,7 +52,6 @@ public class ComputeNode implements Node {
             NodeID node = new NodeID(info.substring(0, info.indexOf(':')), Integer.parseInt(info.substring(info.indexOf(':') + 1)));
             TCPConnection conn = socketToConn.get(socket);
             connections.put(node, conn);
-            connectionList.add(node);
         }
         else if(event.getType() == Protocol.MESSAGING_NODES_LIST) {
             MessagingNodesList message = (MessagingNodesList) event;
