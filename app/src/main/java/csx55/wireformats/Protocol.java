@@ -17,4 +17,6 @@ public interface Protocol {
     int TOTAL_NUM_NODES = 14;
     int TASK_REQUEST = 15;
     int TASK_RESPONSE = 16;
+    int PULL_TRAFFIC_SUMMARY = 17;
+    int TRAFFIC_SUMMARY = 18;
 }

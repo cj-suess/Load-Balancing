@@ -12,6 +12,7 @@ import csx55.wireformats.*;
 import java.util.logging.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ComputeNode implements Node {
 
@@ -21,14 +22,21 @@ public class ComputeNode implements Node {
     private int numThreads;
 
     private NodeID registryNode;
-    private NodeID myNode;
+    public NodeID myNode;
+    private NodeID successorID;
+    public TCPConnection registryConn;
 
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
     private volatile List<NodeID> connectionList = new ArrayList<>();
-    private Set<NodeID> seenRequests = new ConcurrentHashMap().keySet();
+    private Set<UUID> seenRequests = ConcurrentHashMap.newKeySet();
+    private Set<UUID> sentRequests = ConcurrentHashMap.newKeySet();
 
     private TaskProcessor processor;
+
+    // metrics
+    private AtomicInteger pulledTasks = new AtomicInteger(0);
+    private AtomicInteger pushedTasks = new AtomicInteger(0);
 
 
     public ComputeNode(String host, int port) {
@@ -57,6 +65,7 @@ public class ComputeNode implements Node {
             MessagingNodesList message = (MessagingNodesList) event;
             log.info("Received connection list from Registry..." + "\n\tConnecting to " + message.numConnections + " nodes.");
             connectionList = message.getPeers();
+            successorID = connectionList.get(0);
             connect();
         }
         else if(event.getType() == Protocol.TOTAL_NUM_NODES){
@@ -74,7 +83,11 @@ public class ComputeNode implements Node {
             TaskSum message = (TaskSum) event;
             if (processor.completedTaskSumNodes.add(message.nodeId)) {
                 processor.networkTaskSum.addAndGet(message.taskSum);
-                relayTaskSum(message, socket);
+                try {
+                    forwardMessage(message.getBytes());
+                } catch(IOException e) {
+                    log.warning("Exception while forwarding task sum message..." + e.getStackTrace());
+                }
             }
             if(processor.completedTaskSumNodes.size() == processor.totalNumRegisteredNodes.get()) {
                 printNetworkTaskSum();
@@ -101,6 +114,15 @@ public class ComputeNode implements Node {
             TaskResponse response = (TaskResponse) event;
             handleTaskResponse(response, socket);
         }
+        else if(event.getType() == Protocol.PULL_TRAFFIC_SUMMARY) {
+            try {
+                log.info("Received task summary request from Registry. Sending back requested information...");
+                TaskSummaryResponse response = new TaskSummaryResponse(Protocol.TRAFFIC_SUMMARY, myNode.getPort(), processor.getTotalTasks(), pulledTasks.get(), pushedTasks.get(), processor.tasksCompleted.get(), processor.calculatePercentageOfWork());
+                registryConn.sender.sendData(response.getBytes());
+            } catch(IOException e) {
+                log.warning("Exception while sending TaskSummaryReport to Registry...." + e.getMessage());
+            }
+        }
     }
 
     public void checkForLoadBalancing() {
@@ -120,6 +142,7 @@ public class ComputeNode implements Node {
                 log.info("Received a response with " + response.tasks.size() + " tasks.");
                 if(processor.phase.compareAndSet(Phase.LOAD_BALANCE, Phase.PROCESSING)) {
                     log.info("State is LOAD_BALANCE. Accepting tasks and returning to PROCESSING.");
+                    pulledTasks.incrementAndGet();
                     processor.taskQueue.addAll(response.tasks);
                     processor.pendingRequests.decrementAndGet();
                 } else {
@@ -130,8 +153,8 @@ public class ComputeNode implements Node {
                     processor.phase.set(Phase.DONE);
                 }
             } else {
-                log.info("Received a response for another node. Forwarding...");
-                forwardMessage(response.getBytes(), incoming);
+                log.info("Forwarding response for requester " + requester + " to successor " + successorID);
+                forwardMessage(response.getBytes());
             }
         }catch(IOException e) {
             log.info("Exception while handling task response..." + e.getStackTrace());
@@ -147,56 +170,45 @@ public class ComputeNode implements Node {
         try {
             List<Task> tasks = new ArrayList<>();
             NodeID requester = request.requesterId;
+            UUID uuid = request.uuid;
 
-            if(request.ttl <= 0 || seenRequests.contains(requester)) {
-                // drop
-            }
+            seenRequests.add(uuid);
+            if (!processor.excessQueue.isEmpty()) { // I have tasks to give 
+                int amountToGive = Math.min(request.numTasksRequested, processor.excessQueue.size());
 
-            int surplus = processor.taskQueue.size() - processor.numTasksToComplete.get();
-
-            if (surplus > 0) { // I have more tasks than I need for myself
-                int amountToGive;
-                if (surplus == 1) {
-                    amountToGive = 1;
-                } else {
-                    amountToGive = Math.max(1, surplus / 2);
-                }
-                
-                int finalAmountToSend = Math.min(request.numTasksRequested, amountToGive);
-
-                log.info("Fulfilling request from " + requester + ". Surplus: " + surplus + ", Sending: " + finalAmountToSend);
-
-                for (int i = 0; i < finalAmountToSend; i++) {
-                    Task task = processor.taskQueue.poll();
+                log.info("Fulfilling request from " + requester + ", Sending: " + amountToGive);
+                pushedTasks.incrementAndGet();
+                for (int i = 0; i < amountToGive; i++) {
+                    Task task = processor.excessQueue.poll();
                     if (task != null) {
                         tasks.add(task);
                     }
                 }
                 
                 TaskResponse response = new TaskResponse(Protocol.TASK_RESPONSE, requester, tasks);
-                TCPConnection requestConn = connections.get(requester);
-                
-                if (requestConn != null) {
-                    requestConn.sender.sendData(response.getBytes());
+                TCPConnection conn = connections.get(requester);
+                if(conn != null) {
+                    conn.sender.sendData(response.getBytes());
                 } else {
-                    forwardMessage(response.getBytes(), incoming);
+                    forwardMessage(response.getBytes());
                 }
-
-            } else { // I am underloaded or have just enough for myself
-                log.info("Not enough surplus to fulfill request. Forwarding.");
-                forwardMessage(request.getBytes(), incoming);
+            } else { // I dont have tasks to give
+                log.info("Forwarding request " + uuid + " to successor " + successorID + " with TTL " + request.ttl);
+                request.ttl -= 1;
+                forwardMessage(request.getBytes());
             }
         } catch (IOException e) {
             log.warning("Exception while handling task request." + e);
         }
     }
 
-    private void forwardMessage(byte[] message, Socket incoming) {
+    private void forwardMessage(byte[] message) {
         try{
-            for(Map.Entry<Socket, TCPConnection> entry : socketToConn.entrySet()){
-                if(!entry.getKey().equals(incoming)){
-                    entry.getValue().sender.sendData(message);
-                }
+            TCPConnection conn = connections.get(successorID);
+            if(conn != null) {
+                conn.sender.sendData(message);
+            } else {
+                log.warning("Error when forwarding message. Could not find connection for successor ID: " + successorID.toString());
             }
         }catch(IOException e) {
             log.warning("Exception while forwarding message..." + e.getStackTrace());
@@ -206,33 +218,16 @@ public class ComputeNode implements Node {
     private void initiateTaskRequest(int requestedTasks) {
         log.info("Sending task request for " + requestedTasks + " tasks...");
         try {
-            List<NodeID> activeConns = new ArrayList<>(connections.keySet());
-            if(activeConns.isEmpty()){
-                // log.warning("Cannot request tasks. No active connections.");
-                return;
-            }
-            TaskRequest tr = new TaskRequest(Protocol.TASK_REQUEST, myNode, requestedTasks, processor.totalNumRegisteredNodes.get());
-            NodeID neighbor = activeConns.get(new Random().nextInt(activeConns.size()));
-            connections.get(neighbor).sender.sendData(tr.getBytes());
+            UUID uuid = UUID.randomUUID();
+            TaskRequest tr = new TaskRequest(Protocol.TASK_REQUEST, myNode, requestedTasks, processor.totalNumRegisteredNodes.get() - 1, uuid);
+            forwardMessage(tr.getBytes());
+            sentRequests.add(uuid);
         } catch(IOException e) {
             log.warning("Exception while initiating a task request..." + e.getStackTrace());
         }
     }
-    
-    private void relayTaskSum(TaskSum message, Socket incoming){
-        for(Map.Entry<Socket, TCPConnection> entry : socketToConn.entrySet()){
-            Socket socket = entry.getKey();
-            if(!socket.equals(incoming)){
-                try {
-                    entry.getValue().sender.sendData(message.getBytes());
-                } catch(IOException e) {
-                    log.warning("Exception while relaying task sum message..." + e.getStackTrace());
-                }
-            }
-        }
-    }
 
-    public void printNetworkTaskSum(){
+    public void printNetworkTaskSum() {
         log.info("Total number of tasks in the network: " + Integer.toString(processor.networkTaskSum.get()));
     }
 
@@ -241,9 +236,7 @@ public class ComputeNode implements Node {
             log.info("Sending task sum to other nodes...");
             int taskSum = processor.getTotalTasks();
             TaskSum taskMessage = new TaskSum(Protocol.TASK_SUM, taskSum, myNode);
-            for(Map.Entry<NodeID, TCPConnection> entry : connections.entrySet()) {
-                entry.getValue().sender.sendData(taskMessage.getBytes());
-            }
+            forwardMessage(taskMessage.getBytes());
             if (processor.completedTaskSumNodes.add(myNode)) processor.networkTaskSum.addAndGet(taskSum);
         } catch(IOException e) {
             log.warning("Exception while send task sum to other nodes..." + e.getStackTrace());
@@ -253,7 +246,7 @@ public class ComputeNode implements Node {
     private void register() {
         try{
             Socket socket = new Socket(registryNode.getIP(), registryNode.getPort());
-            TCPConnection registryConn = new TCPConnection(socket, this);
+            registryConn = new TCPConnection(socket, this);
             Register registerMessage = new Register(Protocol.REGISTER_REQUEST, myNode);
             registryConn.startReceiverThread();
             registryConn.sender.sendData(registerMessage.getBytes());
@@ -312,8 +305,17 @@ public class ComputeNode implements Node {
                     case "print-total-tasks":
                         printNetworkTaskSum();
                         break;
-                    case "print-tasks-in-queue":
-                        processor.printTasksInQueue();
+                    case "print-task-info":
+                        processor.printTaskInfo();
+                        break;
+                    case "print-pending":
+                        processor.printPendingRequests();
+                        break;
+                    case "print-requests":
+                        printRequests();
+                        break;
+                    case "print-phase":
+                        processor.printPhase();
                         break;
                     default:
                         break;
@@ -331,6 +333,17 @@ public class ComputeNode implements Node {
     private void printConnectionList() {
         for(NodeID entry : connectionList){
             log.info(entry.toString());
+        }
+    }
+
+    private void printRequests(){
+        log.info("Sent request UUIDs: ");
+        for(UUID uuid : sentRequests) {
+            log.info(uuid.toString());
+        }
+        log.info("Received reques UUIDs: ");
+        for(UUID uuid : seenRequests){
+            log.info(uuid.toString());
         }
     }
 

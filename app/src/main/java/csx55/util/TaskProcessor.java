@@ -1,6 +1,7 @@
 package csx55.util;
 
 import java.util.logging.*;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +18,8 @@ import csx55.hashing.Miner;
 import csx55.hashing.Task;
 import csx55.threads.ComputeNode;
 import csx55.wireformats.NodeID;
+import csx55.wireformats.Protocol;
+import csx55.wireformats.TaskComplete;
 
 public class TaskProcessor {
 
@@ -27,6 +30,7 @@ public class TaskProcessor {
     private List<Thread> threadPool = Collections.synchronizedList(new ArrayList<>());
     public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
     public Set<NodeID> completedTaskSumNodes = ConcurrentHashMap.newKeySet();
+    public BlockingQueue<Task> excessQueue = new LinkedBlockingQueue<>();
 
     public enum Phase {PROCESSING, LOAD_BALANCE, DONE};
     public AtomicReference<Phase> phase = new AtomicReference<>(Phase.PROCESSING);
@@ -39,6 +43,8 @@ public class TaskProcessor {
     public AtomicInteger networkTaskSum = new AtomicInteger(0);
     public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
     public AtomicInteger excessTasks = new AtomicInteger(0);
+    public AtomicInteger startingTaskQueueBeforeMining = new AtomicInteger(0);
+    public float percentOfWorkCompleted = 0;
 
     public TaskProcessor(int numThreads, NodeID id, ComputeNode node) {
         this.numThreads = numThreads;
@@ -49,6 +55,16 @@ public class TaskProcessor {
     public void computeLoadBalancing() {
         computeFairShare();
         computeExcess();
+        if(excessTasks.get() > 0) {
+            for(int i = 0; i < excessTasks.get(); i++) {
+                Task t = taskQueue.poll();
+                if(t != null) {
+                    excessQueue.add(t);
+                }
+            }
+        }
+        excessTasks.set(excessQueue.size());
+        startingTaskQueueBeforeMining.set(taskQueue.size());
         log.info("Number of tasks to complete: " + numTasksToComplete.get() + "\n\tExcess tasks to disperse: " + excessTasks.get());
     }
 
@@ -66,6 +82,10 @@ public class TaskProcessor {
         return Math.max(0, numTasksToComplete.get() - (tasksCompleted.get() + tasksBeingMined.get()));
     }
 
+    public float calculatePercentageOfWork() {
+        return networkTaskSum.get() / tasksCompleted.get();
+    }
+
     private boolean stop(){
         return phase.get() == Phase.DONE;
     }
@@ -73,7 +93,7 @@ public class TaskProcessor {
     public void createTasks(int totalNumRounds){
         Random rand = new Random();
         for(int i = 0; i < totalNumRounds; i++) {
-            int tasks = rand.nextInt(100) + 1;
+            int tasks = rand.nextInt(999) + 1;
             for(int j = 0; j < tasks; j++){
                 Task task = new Task(id.getIP(), id.getPort(), i, j);
                 taskQueue.add(task);
@@ -97,12 +117,20 @@ public class TaskProcessor {
                             tasksBeingMined.incrementAndGet();
                             miner.mine(t);
                             tasksCompleted.incrementAndGet();
+                            log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
                         } finally {
                             tasksBeingMined.decrementAndGet();
                         }
-                    }
-                    if(tasksCompleted.get() == numTasksToComplete.get()) {
-                        log.info("DONE");
+                        if(tasksCompleted.get() == numTasksToComplete.get()) {
+                            log.info("DONE");
+                            phase.set(Phase.DONE);
+                            try {
+                                TaskComplete tc = new TaskComplete(Protocol.TASK_COMPLETE, node.myNode.getIP(), node.myNode.getPort());
+                                node.registryConn.sender.sendData(tc.getBytes());
+                            } catch(IOException e) {
+                                log.warning("IOException while sending task complete message to registry..." + e.getStackTrace());
+                            }
+                        }
                     }
                 } catch(InterruptedException e) {
                     log.warning("Exception while processing tasks" + e.getStackTrace());
@@ -117,7 +145,27 @@ public class TaskProcessor {
         return totalTasks;
     }
 
-    public void printTasksInQueue(){
-        log.info("Total number of tasks in queue: " + String.valueOf(taskQueue.size()));
+    public void printPhase() {
+        log.info(phase.toString());
+    }
+
+    public int getPendingRequests() {
+        return pendingRequests.get();
+    }
+
+    public void printPendingRequests() {
+        log.info("Current pending requests: " + getPendingRequests());
+    }
+
+    public void printTasksInQueue() {
+        log.info("Total number of tasks in task queue: " + String.valueOf(taskQueue.size()));
+    }
+
+    public void printTaskInfo(){
+        log.info("Total number of tasks created: " + String.valueOf(getTotalTasks()));
+        log.info("Starting tasks in queue before mining: " + String.valueOf(startingTaskQueueBeforeMining.get()));
+        log.info("Total number of tasks in task queue: " + String.valueOf(taskQueue.size()));
+        log.info("Total number of tasks in excess queue: " + String.valueOf(excessQueue.size()));
+        log.info("Network task sum: " + String.valueOf(networkTaskSum.get()));
     }
 }

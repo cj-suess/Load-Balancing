@@ -3,6 +3,7 @@ package csx55.wireformats;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.UUID;
 
 public class TaskRequest implements Event {
     
@@ -10,12 +11,14 @@ public class TaskRequest implements Event {
     public NodeID requesterId;
     public int numTasksRequested;
     public int ttl;
+    public UUID uuid;
 
-    public TaskRequest(int messageType, NodeID requesterId, int numTasksRequested, int numNodes){
+    public TaskRequest(int messageType, NodeID requesterId, int numTasksRequested, int numNodes, UUID uuid){
         this.messageType = messageType;
         this.requesterId = requesterId;
         this.numTasksRequested = numTasksRequested;
-        this.ttl = numNodes - 1;
+        this.ttl = numNodes;
+        this.uuid = uuid; // CHECKPOINT -> use this to create unique requests from same requester. add to seenRequests check
     }
 
     @Override
@@ -32,7 +35,12 @@ public class TaskRequest implements Event {
         /* FILL IN REQURED MARSHALING */
         writeNodeID(dout);
         dout.writeInt(numTasksRequested);
-        dout.writeInt(ttl);
+        int newTtl = this.ttl - 1;
+        dout.writeInt(newTtl);
+        byte[] uuidBytes = uuid.toString().getBytes();
+        int uuidLength = uuidBytes.length;
+        dout.writeInt(uuidLength);
+        dout.write(uuidBytes);
         /*                           */
         dout.flush();
         encodedData = baos.toByteArray();
