@@ -26,6 +26,7 @@ public class ComputeNode implements Node {
     private Map<NodeID, TCPConnection> connections = new ConcurrentHashMap<>();
     private Map<Socket, TCPConnection> socketToConn = new ConcurrentHashMap<>();
     private volatile List<NodeID> connectionList = new ArrayList<>();
+    private Set<NodeID> seenRequests = new ConcurrentHashMap().keySet();
 
     private TaskProcessor processor;
 
@@ -68,7 +69,7 @@ public class ComputeNode implements Node {
             Message message = (Message) event;
             numThreads = Integer.parseInt(message.info);
             log.info("Recieving thread count from Registry...\n" + "\tThread Count :" + numThreads);
-            processor = new TaskProcessor(numThreads, myNode);
+            processor = new TaskProcessor(numThreads, myNode, this);
         }
         else if(event.getType() == Protocol.TASK_SUM){
             TaskSum message = (TaskSum) event;
@@ -80,11 +81,8 @@ public class ComputeNode implements Node {
                 printNetworkTaskSum();
                 processor.completedTaskSumNodes.clear();
                 processor.computeLoadBalancing();
-                processor.phase.set(Phase.LOCAL);
+                processor.phase.set(Phase.PROCESSING);
                 processor.createThreadPool(numThreads);
-                while(processor.phase.get() != Phase.DONE) {
-                    checkForLoadBalancing(processor);
-                }
             }
         }
         else if(event.getType() == Protocol.TASK_INITIATE){
@@ -95,21 +93,22 @@ public class ComputeNode implements Node {
             sendTaskSum();
         }
         else if(event.getType() == Protocol.TASK_REQUEST) {
-            log.info("Received task request...");
+            // log.info("Received task request...");
             TaskRequest request = (TaskRequest) event;
             handleTaskRequest(request, socket);
         }
         else if(event.getType() == Protocol.TASK_RESPONSE) {
-            log.info("Received task repsonse...");
+            // log.info("Received task repsonse...");
             TaskResponse response = (TaskResponse) event;
             handleTaskResponse(response, socket);
         }
     }
 
-    private void checkForLoadBalancing(TaskProcessor processor) {
-        if(processor.phase.get() == Phase.LOCAL && processor.taskQueue.isEmpty() && processor.remainingTasksNeeded() > 0) {
-            if(processor.phase.compareAndSet(Phase.LOCAL, Phase.LOAD_BALANCE)) {
-                processor.pendingRequests.incrementAndGet();
+    public void checkForLoadBalancing() {
+        if(processor.phase.get() == Phase.PROCESSING && processor.taskQueue.isEmpty() && processor.remainingTasksNeeded() > 0) {
+            if(processor.pendingRequests.compareAndSet(0, 1)) {
+                log.info("Queue is empty and there are no pending reqeusts. Sending new taks request...");
+                processor.phase.set(Phase.LOAD_BALANCE);
                 initiateTaskRequest(processor.remainingTasksNeeded());
             }
         }
@@ -117,25 +116,22 @@ public class ComputeNode implements Node {
 
     private void handleTaskResponse(TaskResponse response, Socket incoming){
         try {
-            processor.pendingRequests.decrementAndGet();
             NodeID requester = response.requesterId;
             if(requester.equals(myNode)){ // this is for me 
-                log.info("Received response with " + response.tasks.size() + " tasks.");
-                if(processor.phase.compareAndSet(Phase.LOAD_BALANCE, Phase.LOCAL)) {
+                log.info("Received a response with " + response.tasks.size() + " tasks.");
+                if(processor.phase.compareAndSet(Phase.LOAD_BALANCE, Phase.PROCESSING)) {
+                    log.info("State is LOAD_BALANCE. Accepting tasks and returning to PROCESSING.");
                     processor.taskQueue.addAll(response.tasks);
-                }
-                // ask for more if needed
-                if(processor.remainingTasksNeeded() > 0) {
-                    if(processor.phase.compareAndSet(Phase.LOCAL, Phase.LOAD_BALANCE)) {
-                        initiateTaskRequest(processor.remainingTasksNeeded());
-                    }
+                    processor.pendingRequests.decrementAndGet();
+                } else {
+                    log.warning("Received tasks but not in LOAD_BALANCE state. Current state: " + processor.phase.get());
                 }
                 if(done()){
-                    log.info("Setting phase to DONE...");
+                    log.info("All tasks complete. Setting phase to DONE...");
                     processor.phase.set(Phase.DONE);
                 }
             } else {
-                log.info("Forwarding message...");
+                log.info("Received a response for another node. Forwarding...");
                 forwardMessage(response.getBytes(), incoming);
             }
         }catch(IOException e) {
@@ -148,37 +144,51 @@ public class ComputeNode implements Node {
         return processor.remainingTasksNeeded() == 0 && processor.taskQueue.isEmpty() && processor.tasksBeingMined.get() == 0 && processor.pendingRequests.get() == 0;
     }
 
-    private void handleTaskRequest(TaskRequest request, Socket incoming){
+    private void handleTaskRequest(TaskRequest request, Socket incoming) {
         try {
-
-            TaskResponse response;
             List<Task> tasks = new ArrayList<>();
             NodeID requester = request.requesterId;
-            int neededTasks = processor.remainingTasksNeeded();
-            int availableToSend = Math.max(0, processor.taskQueue.size() - neededTasks);
-            int tasksToSend = Math.min(request.numTasksRequested, availableToSend);
 
-            if(processor.remainingTasksNeeded() == 0) {
-                log.info("Can fulfill request for " + request.requesterId);
-                for(int i = 0; i < tasksToSend; i++) {
+            if(request.ttl <= 0 || seenRequests.contains(requester)) {
+                // drop
+            }
+
+            int surplus = processor.taskQueue.size() - processor.numTasksToComplete.get();
+
+            if (surplus > 0) { // I have more tasks than I need for myself
+                int amountToGive;
+                if (surplus == 1) {
+                    amountToGive = 1;
+                } else {
+                    amountToGive = Math.max(1, surplus / 2);
+                }
+                
+                int finalAmountToSend = Math.min(request.numTasksRequested, amountToGive);
+
+                log.info("Fulfilling request from " + requester + ". Surplus: " + surplus + ", Sending: " + finalAmountToSend);
+
+                for (int i = 0; i < finalAmountToSend; i++) {
                     Task task = processor.taskQueue.poll();
-                    if(task != null) {
+                    if (task != null) {
                         tasks.add(task);
                     }
                 }
-                response = new TaskResponse(Protocol.TASK_RESPONSE, requester, tasks);
+                
+                TaskResponse response = new TaskResponse(Protocol.TASK_RESPONSE, requester, tasks);
                 TCPConnection requestConn = connections.get(requester);
-                if(requestConn != null) {
+                
+                if (requestConn != null) {
                     requestConn.sender.sendData(response.getBytes());
                 } else {
                     forwardMessage(response.getBytes(), incoming);
                 }
-            } else {
-                log.info("Cannot fulfill request at this time. Forwarding request.");
+
+            } else { // I am underloaded or have just enough for myself
+                log.info("Not enough surplus to fulfill request. Forwarding.");
                 forwardMessage(request.getBytes(), incoming);
             }
-        } catch(IOException e) {
-            log.warning("Exception while handling task request..." + e.getStackTrace());
+        } catch (IOException e) {
+            log.warning("Exception while handling task request." + e);
         }
     }
 
@@ -187,7 +197,6 @@ public class ComputeNode implements Node {
             for(Map.Entry<Socket, TCPConnection> entry : socketToConn.entrySet()){
                 if(!entry.getKey().equals(incoming)){
                     entry.getValue().sender.sendData(message);
-                    return;
                 }
             }
         }catch(IOException e) {
@@ -200,10 +209,10 @@ public class ComputeNode implements Node {
         try {
             List<NodeID> activeConns = new ArrayList<>(connections.keySet());
             if(activeConns.isEmpty()){
-                log.warning("Cannot request tasks. No active connections.");
+                // log.warning("Cannot request tasks. No active connections.");
                 return;
             }
-            TaskRequest tr = new TaskRequest(Protocol.TASK_REQUEST, myNode, requestedTasks);
+            TaskRequest tr = new TaskRequest(Protocol.TASK_REQUEST, myNode, requestedTasks, processor.totalNumRegisteredNodes.get());
             NodeID neighbor = activeConns.get(new Random().nextInt(activeConns.size()));
             connections.get(neighbor).sender.sendData(tr.getBytes());
         } catch(IOException e) {

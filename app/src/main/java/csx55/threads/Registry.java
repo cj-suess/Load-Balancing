@@ -152,7 +152,7 @@ public class Registry implements Node {
         int numThreads = Integer.parseInt(threads);
         OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
         overlay = oc.buildRing();
-        connectionMap = oc.filter(overlay);
+        connectionMap = overlay;
         sendConnectionMap();
         sendThreads(numThreads);
         sendTotalNumConnections(openConnections.size());

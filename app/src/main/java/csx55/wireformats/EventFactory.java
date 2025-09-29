@@ -81,7 +81,8 @@ public class EventFactory {
         String ip = readString(dis);
         int port = dis.readInt();
         int numTasksRequested = dis.readInt();
-        return new TaskRequest(messageType, new NodeID(ip, port), numTasksRequested);
+        int ttl = dis.readInt();
+        return new TaskRequest(messageType, new NodeID(ip, port), numTasksRequested, ttl);
     }
 
     private static TaskSum readTaskSum(int messageType, DataInputStream dis) throws IOException {

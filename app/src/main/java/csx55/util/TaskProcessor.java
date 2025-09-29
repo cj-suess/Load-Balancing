@@ -15,19 +15,21 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import csx55.hashing.Miner;
 import csx55.hashing.Task;
+import csx55.threads.ComputeNode;
 import csx55.wireformats.NodeID;
 
 public class TaskProcessor {
 
     private Logger log = Logger.getLogger(this.getClass().getName());
     private NodeID id;
+    private ComputeNode node;
 
     private List<Thread> threadPool = Collections.synchronizedList(new ArrayList<>());
     public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
     public Set<NodeID> completedTaskSumNodes = ConcurrentHashMap.newKeySet();
 
-    public enum Phase {LOCAL, LOAD_BALANCE, DONE};
-    public AtomicReference<Phase> phase = new AtomicReference<>(Phase.LOCAL);
+    public enum Phase {PROCESSING, LOAD_BALANCE, DONE};
+    public AtomicReference<Phase> phase = new AtomicReference<>(Phase.PROCESSING);
     public AtomicInteger tasksBeingMined = new AtomicInteger(0);
     public AtomicInteger pendingRequests = new AtomicInteger(0);
     private int totalTasks = 0;
@@ -38,9 +40,10 @@ public class TaskProcessor {
     public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
     public AtomicInteger excessTasks = new AtomicInteger(0);
 
-    public TaskProcessor(int numThreads, NodeID id) {
+    public TaskProcessor(int numThreads, NodeID id, ComputeNode node) {
         this.numThreads = numThreads;
         this.id = id;
+        this.node = node;
     }
 
     public void computeLoadBalancing() {
@@ -64,13 +67,13 @@ public class TaskProcessor {
     }
 
     private boolean stop(){
-        return phase.get() == Phase.DONE || (remainingTasksNeeded() == 0 && taskQueue.isEmpty() && tasksBeingMined.get() == 0 && pendingRequests.get() == 0);
+        return phase.get() == Phase.DONE;
     }
     
     public void createTasks(int totalNumRounds){
         Random rand = new Random();
         for(int i = 0; i < totalNumRounds; i++) {
-            int tasks = rand.nextInt(999) + 1;
+            int tasks = rand.nextInt(100) + 1;
             for(int j = 0; j < tasks; j++){
                 Task task = new Task(id.getIP(), id.getPort(), i, j);
                 taskQueue.add(task);
@@ -87,6 +90,7 @@ public class TaskProcessor {
                     while(!stop()) {
                         Task t = taskQueue.poll(100, TimeUnit.MILLISECONDS);
                         if(t==null) {
+                            node.checkForLoadBalancing();
                             continue;
                         }
                         try {
@@ -96,6 +100,9 @@ public class TaskProcessor {
                         } finally {
                             tasksBeingMined.decrementAndGet();
                         }
+                    }
+                    if(tasksCompleted.get() == numTasksToComplete.get()) {
+                        log.info("DONE");
                     }
                 } catch(InterruptedException e) {
                     log.warning("Exception while processing tasks" + e.getStackTrace());

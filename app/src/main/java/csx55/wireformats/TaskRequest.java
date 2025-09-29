@@ -9,11 +9,13 @@ public class TaskRequest implements Event {
     public int messageType;
     public NodeID requesterId;
     public int numTasksRequested;
+    public int ttl;
 
-    public TaskRequest(int messageType, NodeID requesterId, int numTasksRequested){
+    public TaskRequest(int messageType, NodeID requesterId, int numTasksRequested, int numNodes){
         this.messageType = messageType;
         this.requesterId = requesterId;
         this.numTasksRequested = numTasksRequested;
+        this.ttl = numNodes - 1;
     }
 
     @Override
@@ -30,6 +32,7 @@ public class TaskRequest implements Event {
         /* FILL IN REQURED MARSHALING */
         writeNodeID(dout);
         dout.writeInt(numTasksRequested);
+        dout.writeInt(ttl);
         /*                           */
         dout.flush();
         encodedData = baos.toByteArray();
