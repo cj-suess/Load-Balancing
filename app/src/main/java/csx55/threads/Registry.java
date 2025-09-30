@@ -50,11 +50,6 @@ public class Registry implements Node {
             if(finishedNodes.size() == openConnections.size()) {
                 summaryReport.put("sum", new ArrayList<>(Collections.nCopies(5, 0f)));
                 finishedNodes.clear();
-                try{
-                    Thread.sleep(1000);
-                }catch(InterruptedException e) {
-                    log.warning(e.getStackTrace().toString());
-                }
                 sendTrafficSummaryRequest();
             }
         }

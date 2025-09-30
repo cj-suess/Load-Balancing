@@ -105,35 +105,31 @@ public class TaskProcessor {
     public void createThreadPool(int numThreads) {
         for(int i = 0; i < numThreads; i++){
             Thread thread = new Thread(() -> {
-                try{
-                    Miner miner = new Miner();
-                    while(!stop()) {
-                        Task t = taskQueue.poll(100, TimeUnit.MILLISECONDS);
-                        if(t==null) {
-                            node.checkForLoadBalancing();
-                            continue;
-                        }
+                Miner miner = new Miner();
+                while(!stop()) {
+                    Task t = taskQueue.poll();
+                    if(t==null) {
+                        node.checkForLoadBalancing();
+                        continue;
+                    }
+                    try {
+                        tasksBeingMined.incrementAndGet();
+                        miner.mine(t);
+                        tasksCompleted.incrementAndGet();
+                        log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
+                    } finally {
+                        tasksBeingMined.decrementAndGet();
+                    }
+                    if(tasksCompleted.get() == numTasksToComplete.get()) {
+                        log.info("DONE");
+                        phase.set(Phase.LOAD_BALANCE);
                         try {
-                            tasksBeingMined.incrementAndGet();
-                            miner.mine(t);
-                            tasksCompleted.incrementAndGet();
-                            log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
-                        } finally {
-                            tasksBeingMined.decrementAndGet();
-                        }
-                        if(tasksCompleted.get() == numTasksToComplete.get()) {
-                            log.info("DONE");
-                            phase.set(Phase.DONE);
-                            try {
-                                TaskComplete tc = new TaskComplete(Protocol.TASK_COMPLETE, node.myNode.getIP(), node.myNode.getPort());
-                                node.registryConn.sender.sendData(tc.getBytes());
-                            } catch(IOException e) {
-                                log.warning("IOException while sending task complete message to registry..." + e.getStackTrace());
-                            }
+                            TaskComplete tc = new TaskComplete(Protocol.TASK_COMPLETE, node.myNode.getIP(), node.myNode.getPort());
+                            node.registryConn.sender.sendData(tc.getBytes());
+                        } catch(IOException e) {
+                            log.warning("IOException while sending task complete message to registry..." + e.getStackTrace());
                         }
                     }
-                } catch(InterruptedException e) {
-                    log.warning("Exception while processing tasks" + e.getStackTrace());
                 }
             });
             thread.start();
