@@ -71,11 +71,11 @@ public class Registry implements Node {
     private void printSummaryReport() {
         for(Map.Entry<String, List<Float>> entry : summaryReport.entrySet()){
             if(!entry.getKey().equals("sum")) {
-                System.out.printf(entry.getKey() + " %.0f %.0f %.0f %.0f %.7f\n", entry.getValue().get(0), entry.getValue().get(1), entry.getValue().get(2), entry.getValue().get(3), entry.getValue().get(4));
+                System.out.printf(entry.getKey() + " %.0f %.0f %.0f %.0f %.7f\n", entry.getValue().get(0), entry.getValue().get(1), entry.getValue().get(2), entry.getValue().get(3), entry.getValue().get(4) * 100);
             }
         }
         if(summaryReport.containsKey("sum")){
-            System.out.printf("sum %.0f %.0f %.0f %.0f %.0f", summaryReport.get("sum").get(0), summaryReport.get("sum").get(1), summaryReport.get("sum").get(2), summaryReport.get("sum").get(0), summaryReport.get("sum").get(4));
+            System.out.printf("sum %.0f %.0f %.0f %.0f %.0f", summaryReport.get("sum").get(0), summaryReport.get("sum").get(1), summaryReport.get("sum").get(2), summaryReport.get("sum").get(0), summaryReport.get("sum").get(4) * 100);
         }
     }
 
