@@ -86,7 +86,7 @@ public class Registry implements Node {
         summaryReport.get(nodeIDString).add((float) tsr.pulledTasks);
         summaryReport.get(nodeIDString).add((float) tsr.pushedTasks);
         summaryReport.get(nodeIDString).add((float) tsr.completedTasks);
-        summaryReport.get(nodeIDString).add((float) tsr.workloadPercentage);
+        summaryReport.get(nodeIDString).add(tsr.workloadPercentage);
 
         List<Float> sum = summaryReport.get("sum");
         sum.set(0, sum.get(0) + tsr.generatedTasks);
