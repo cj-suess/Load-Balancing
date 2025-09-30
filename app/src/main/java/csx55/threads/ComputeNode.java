@@ -100,6 +100,7 @@ public class ComputeNode implements Node {
         else if(event.getType() == Protocol.TASK_INITIATE){
             TaskInitiate ti = (TaskInitiate) event;
             log.info("Received task initiate from Registry with " + ti.numRounds + " rounds...");
+            processor.setNumRounds(ti.numRounds);
             processor.createTasks(ti.numRounds);
             processor.printTasksInQueue();
             sendTaskSum();
