@@ -83,7 +83,7 @@ public class TaskProcessor {
     }
 
     public float calculatePercentageOfWork() {
-        return networkTaskSum.get() / tasksCompleted.get();
+        return (float) tasksCompleted.get() / (float) networkTaskSum.get();
     }
 
     private boolean stop(){
@@ -141,13 +141,10 @@ public class TaskProcessor {
         }
     }
 
-    public void drainExcessQueue(){
-        for(Task t : excessQueue) {
-            taskQueue.add(t);
-        }
-        phase.set(Phase.PROCESSING);
-        if(taskQueue.size() == 0){
-            phase.set(Phase.DONE);
+    public void drainQueues(){
+        taskQueue.addAll(excessQueue);
+        if(phase.compareAndSet(Phase.DONE, Phase.PROCESSING)){
+            log.info("State is DONE. Draining task queue and returning to PROCESSING.");
         }
     }
 

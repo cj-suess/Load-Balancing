@@ -116,10 +116,10 @@ public class ComputeNode implements Node {
         }
         else if(event.getType() == Protocol.PULL_TRAFFIC_SUMMARY) {
             try {
-                if(processor.excessQueue.size() > 0){
-                    processor.drainExcessQueue();
+                if(processor.excessQueue.size() > 0 || processor.taskQueue.size() > 0){
+                    processor.drainQueues();
                 }
-                log.info("Received task summary request from Registry. Sending back requested information...");
+                //log.info("Received task summary request from Registry. Sending back requested information...");
                 TaskSummaryResponse response = new TaskSummaryResponse(Protocol.TRAFFIC_SUMMARY, myNode.getPort(), processor.getTotalTasks(), pulledTasks.get(), pushedTasks.get(), processor.tasksCompleted.get(), processor.calculatePercentageOfWork());
                 registryConn.sender.sendData(response.getBytes());
             } catch(IOException e) {
@@ -156,7 +156,7 @@ public class ComputeNode implements Node {
                     processor.phase.set(Phase.DONE);
                 }
             } else {
-                log.info("Forwarding response for requester " + requester + " to successor " + successorID);
+                //log.info("Forwarding response for requester " + requester + " to successor " + successorID);
                 forwardMessage(response.getBytes());
             }
         }catch(IOException e) {
@@ -196,7 +196,7 @@ public class ComputeNode implements Node {
                     forwardMessage(response.getBytes());
                 }
             } else { // I dont have tasks to give
-                log.info("Forwarding request " + uuid + " to successor " + successorID + " with TTL " + request.ttl);
+                //log.info("Forwarding request " + uuid + " to successor " + successorID + " with TTL " + request.ttl);
                 request.ttl -= 1;
                 forwardMessage(request.getBytes());
             }
