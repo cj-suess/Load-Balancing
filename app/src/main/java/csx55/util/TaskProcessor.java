@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -26,11 +27,12 @@ public class TaskProcessor {
     private Logger log = Logger.getLogger(this.getClass().getName());
     private NodeID id;
     private ComputeNode node;
+    public int numRounds;
 
     private List<Thread> threadPool = Collections.synchronizedList(new ArrayList<>());
-    public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
+    public ArrayBlockingQueue<Task> taskQueue = new ArrayBlockingQueue<>(50000);
     public Set<NodeID> completedTaskSumNodes = ConcurrentHashMap.newKeySet();
-    public BlockingQueue<Task> excessQueue = new LinkedBlockingQueue<>();
+    public ArrayBlockingQueue<Task> excessQueue = new ArrayBlockingQueue<>(50000);
 
     public enum Phase {PROCESSING, LOAD_BALANCE, DONE};
     public AtomicReference<Phase> phase = new AtomicReference<>(Phase.PROCESSING);
@@ -66,6 +68,10 @@ public class TaskProcessor {
         excessTasks.set(excessQueue.size());
         startingTaskQueueBeforeMining.set(taskQueue.size());
         log.info("Number of tasks to complete: " + numTasksToComplete.get() + "\n\tExcess tasks to disperse: " + excessTasks.get());
+    }
+
+    public void setNumRounds(int numRounds){
+        this.numRounds = numRounds;
     }
 
     private void computeExcess() {
@@ -106,30 +112,37 @@ public class TaskProcessor {
         for(int i = 0; i < numThreads; i++){
             Thread thread = new Thread(() -> {
                 Miner miner = new Miner();
-                while(!stop()) {
-                    Task t = taskQueue.poll();
-                    if(t==null) {
-                        node.checkForLoadBalancing();
-                        continue;
-                    }
-                    try {
-                        tasksBeingMined.incrementAndGet();
-                        miner.mine(t);
-                        tasksCompleted.incrementAndGet();
-                        log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
-                    } finally {
-                        tasksBeingMined.decrementAndGet();
-                    }
-                    if(tasksCompleted.get() == numTasksToComplete.get()) {
-                        log.info("DONE");
-                        phase.set(Phase.LOAD_BALANCE);
+                try {
+                    while(!stop()) {
+                        Task t = taskQueue.poll(10, TimeUnit.MILLISECONDS);
+                        if(t==null) {
+                            node.checkForLoadBalancing();
+                            continue;
+                        }
                         try {
-                            TaskComplete tc = new TaskComplete(Protocol.TASK_COMPLETE, node.myNode.getIP(), node.myNode.getPort());
-                            node.registryConn.sender.sendData(tc.getBytes());
-                        } catch(IOException e) {
-                            log.warning("IOException while sending task complete message to registry..." + e.getStackTrace());
+                            tasksBeingMined.incrementAndGet();
+                            miner.mine(t);
+                            tasksCompleted.incrementAndGet();
+                            log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
+                            // if (tasksCompleted.get() % 100 == 0) {
+                            //     log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
+                            // }
+                        } finally {
+                            tasksBeingMined.decrementAndGet();
+                        }
+                        if(tasksCompleted.get() == numTasksToComplete.get()) {
+                            log.info("DONE");
+                            phase.set(Phase.LOAD_BALANCE);
+                            try {
+                                TaskComplete tc = new TaskComplete(Protocol.TASK_COMPLETE, node.myNode.getIP(), node.myNode.getPort());
+                                node.registryConn.sender.sendData(tc.getBytes());
+                            } catch(IOException e) {
+                                log.warning("IOException while sending task complete message to registry..." + e.getStackTrace());
+                            }
                         }
                     }
+                } catch (InterruptedException e) {
+                    log.warning("Exception while mining" + e.getStackTrace());
                 }
             });
             thread.start();
