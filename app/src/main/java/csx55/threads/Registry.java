@@ -20,6 +20,8 @@ public class Registry implements Node {
     private Map<NodeID, TCPConnection> nodeToConnMap = new ConcurrentHashMap<>();
     private Map<NodeID, List<NodeID>> overlay = new ConcurrentHashMap<>();
     private Map<NodeID, List<NodeID>> connectionMap = new ConcurrentHashMap<>();
+    private Set<NodeID> finishedNodes = Collections.newSetFromMap(new ConcurrentHashMap<>()); 
+    private Map<String, List<Float>> summaryReport = new ConcurrentHashMap<>();
 
     public Registry(int port) {
         this.port = port;
@@ -37,6 +39,75 @@ public class Registry implements Node {
             else {
                 sendRegisterFailure(node, sender);
             }
+        }
+        else if(event.getType() == Protocol.TASK_COMPLETE) {
+            TaskComplete taskComplete = (TaskComplete) event;
+            NodeID nodeId = new NodeID(taskComplete.ip, taskComplete.port);
+            // mark node as complete
+            log.info("Received task complete message from " + nodeId);
+            finishedNodes.add(nodeId);
+            summaryReport.put(nodeId.toString(), new ArrayList<>());
+            if(finishedNodes.size() == openConnections.size()) {
+                summaryReport.put("sum", new ArrayList<>(Collections.nCopies(5, 0f)));
+                finishedNodes.clear();
+                try{
+                    Thread.sleep(1000);
+                }catch(InterruptedException e) {
+                    log.warning(e.getStackTrace().toString());
+                }
+                sendTrafficSummaryRequest();
+            }
+        }
+        else if(event.getType() == Protocol.TRAFFIC_SUMMARY) {
+            TaskSummaryResponse tsr = (TaskSummaryResponse) event;
+            addToSummaryReport(tsr, socket.getInetAddress().getHostAddress());
+
+            if(finishedNodes.size() == openConnections.size()) {
+                printSummaryReport();
+            }
+        }
+    }
+
+    private void printSummaryReport() {
+        for(Map.Entry<String, List<Float>> entry : summaryReport.entrySet()){
+            if(!entry.getKey().equals("sum")) {
+                System.out.println(entry.getKey() + " " +  entry.getValue().get(0) + " " + entry.getValue().get(1) + " " + entry.getValue().get(2) + " " + entry.getValue().get(3) + " " + entry.getValue().get(4));
+            }
+        }
+        if(summaryReport.containsKey("sum")){
+            System.out.println("sum " + summaryReport.get("sum").get(0) + " " + summaryReport.get("sum").get(1) + " " + summaryReport.get("sum").get(2) + " " + summaryReport.get("sum").get(3) + " " + summaryReport.get("sum").get(4));
+        }
+    }
+
+    private synchronized void addToSummaryReport(TaskSummaryResponse tsr, String socketAddress) {
+
+        String nodeIDString = socketAddress + ":" + tsr.serverPort;
+        summaryReport.get(nodeIDString).add((float) tsr.generatedTasks);
+        summaryReport.get(nodeIDString).add((float) tsr.pulledTasks);
+        summaryReport.get(nodeIDString).add((float) tsr.pushedTasks);
+        summaryReport.get(nodeIDString).add((float) tsr.completedTasks);
+        summaryReport.get(nodeIDString).add((float) tsr.workloadPercentage);
+
+        List<Float> sum = summaryReport.get("sum");
+        sum.set(0, sum.get(0) + tsr.generatedTasks);
+        sum.set(1, sum.get(1) + tsr.pulledTasks);
+        sum.set(2, sum.get(2) + tsr.pushedTasks);
+        sum.set(3, sum.get(3) + tsr.completedTasks);
+        sum.set(4, sum.get(4) + tsr.workloadPercentage);
+
+        NodeID nodeId = new NodeID(socketAddress, tsr.serverPort);
+        finishedNodes.add(nodeId);
+    }
+
+    private void sendTrafficSummaryRequest() {
+        try {
+            log.info("Sending request for traffic summary to messaging nodes...");
+            TaskSummaryRequest tsr = new TaskSummaryRequest(Protocol.PULL_TRAFFIC_SUMMARY);
+            for(TCPConnection conn : openConnections) {
+                conn.sender.sendData(tsr.getBytes());
+            }
+        } catch(IOException e) {
+            log.warning("IOException while sending traffic summary request to nodes..." + e.getStackTrace());
         }
     }
 
@@ -152,7 +223,7 @@ public class Registry implements Node {
         int numThreads = Integer.parseInt(threads);
         OverlayCreator oc = new OverlayCreator(new ArrayList<>(nodeToConnMap.keySet()));
         overlay = oc.buildRing();
-        connectionMap = oc.filter(overlay);
+        connectionMap = overlay;
         sendConnectionMap();
         sendThreads(numThreads);
         sendTotalNumConnections(openConnections.size());

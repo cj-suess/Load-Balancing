@@ -1,79 +1,143 @@
 package csx55.util;
 
 import java.util.logging.*;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
+import csx55.hashing.Miner;
 import csx55.hashing.Task;
 import csx55.threads.ComputeNode;
 import csx55.wireformats.NodeID;
+import csx55.wireformats.Protocol;
+import csx55.wireformats.TaskComplete;
 
 public class TaskProcessor {
 
     private Logger log = Logger.getLogger(this.getClass().getName());
-
+    private NodeID id;
     private ComputeNode node;
-    private List<Thread> threadPool = new ArrayList<>();
+
+    private List<Thread> threadPool = Collections.synchronizedList(new ArrayList<>());
     public BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
     public Set<NodeID> completedTaskSumNodes = ConcurrentHashMap.newKeySet();
-    public Set<NodeID> readyNodes = ConcurrentHashMap.newKeySet();
+    public BlockingQueue<Task> excessQueue = new LinkedBlockingQueue<>();
+
+    public enum Phase {PROCESSING, LOAD_BALANCE, DONE};
+    public AtomicReference<Phase> phase = new AtomicReference<>(Phase.PROCESSING);
+    public AtomicInteger tasksBeingMined = new AtomicInteger(0);
+    public AtomicInteger pendingRequests = new AtomicInteger(0);
     private int totalTasks = 0;
     private int numThreads;
     public AtomicInteger numTasksToComplete = new AtomicInteger(0);
-    private AtomicInteger tasksCompleted = new AtomicInteger(0);
+    public AtomicInteger tasksCompleted = new AtomicInteger(0);
     public AtomicInteger networkTaskSum = new AtomicInteger(0);
     public AtomicInteger totalNumRegisteredNodes = new AtomicInteger(0);
     public AtomicInteger excessTasks = new AtomicInteger(0);
+    public AtomicInteger startingTaskQueueBeforeMining = new AtomicInteger(0);
+    public float percentOfWorkCompleted = 0;
 
-    public TaskProcessor(ComputeNode node, int numThreads) {
-        this.node = node;
+    public TaskProcessor(int numThreads, NodeID id, ComputeNode node) {
         this.numThreads = numThreads;
-        createThreadPool(numThreads);
+        this.id = id;
+        this.node = node;
     }
 
     public void computeLoadBalancing() {
         computeFairShare();
         computeExcess();
+        if(excessTasks.get() > 0) {
+            for(int i = 0; i < excessTasks.get(); i++) {
+                Task t = taskQueue.poll();
+                if(t != null) {
+                    excessQueue.add(t);
+                }
+            }
+        }
+        excessTasks.set(excessQueue.size());
+        startingTaskQueueBeforeMining.set(taskQueue.size());
         log.info("Number of tasks to complete: " + numTasksToComplete.get() + "\n\tExcess tasks to disperse: " + excessTasks.get());
     }
 
     private void computeExcess() {
-        excessTasks.getAndSet(totalTasks - numTasksToComplete.get());
+        excessTasks.set(totalTasks - numTasksToComplete.get());
     }
 
     private void computeFairShare(){
-        numTasksToComplete.getAndSet(networkTaskSum.get()/totalNumRegisteredNodes.get());
+        if(totalNumRegisteredNodes.get() != 0){
+            numTasksToComplete.getAndSet(networkTaskSum.get()/totalNumRegisteredNodes.get());
+        }
     }
-    
+
+    public int remainingTasksNeeded() {
+        return Math.max(0, numTasksToComplete.get() - (tasksCompleted.get() + tasksBeingMined.get()));
+    }
+
+    public float calculatePercentageOfWork() {
+        return networkTaskSum.get() / tasksCompleted.get();
+    }
+
+    private boolean stop(){
+        return phase.get() == Phase.DONE;
+    }
     
     public void createTasks(int totalNumRounds){
         Random rand = new Random();
         for(int i = 0; i < totalNumRounds; i++) {
             int tasks = rand.nextInt(999) + 1;
             for(int j = 0; j < tasks; j++){
-                Task task = new Task(node.getIP(), node.getPort(), i, j);
+                Task task = new Task(id.getIP(), id.getPort(), i, j);
                 taskQueue.add(task);
             }
         }
         totalTasks = taskQueue.size();
     }
 
-    private void createThreadPool(int numThreads) {
+    public void createThreadPool(int numThreads) {
         for(int i = 0; i < numThreads; i++){
-            Thread t = new Thread(() -> {
-                // while tasksCompleted != numTasksToComplete
-                    // grab task from queue
-                    // process task
-                    // update tasksCompleted
+            Thread thread = new Thread(() -> {
+                try{
+                    Miner miner = new Miner();
+                    while(!stop()) {
+                        Task t = taskQueue.poll(100, TimeUnit.MILLISECONDS);
+                        if(t==null) {
+                            node.checkForLoadBalancing();
+                            continue;
+                        }
+                        try {
+                            tasksBeingMined.incrementAndGet();
+                            miner.mine(t);
+                            tasksCompleted.incrementAndGet();
+                            log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
+                        } finally {
+                            tasksBeingMined.decrementAndGet();
+                        }
+                        if(tasksCompleted.get() == numTasksToComplete.get()) {
+                            log.info("DONE");
+                            phase.set(Phase.DONE);
+                            try {
+                                TaskComplete tc = new TaskComplete(Protocol.TASK_COMPLETE, node.myNode.getIP(), node.myNode.getPort());
+                                node.registryConn.sender.sendData(tc.getBytes());
+                            } catch(IOException e) {
+                                log.warning("IOException while sending task complete message to registry..." + e.getStackTrace());
+                            }
+                        }
+                    }
+                } catch(InterruptedException e) {
+                    log.warning("Exception while processing tasks" + e.getStackTrace());
+                }
             });
-            t.start();
-            threadPool.add(t);
+            thread.start();
+            threadPool.add(thread);
         }
     }
 
@@ -81,7 +145,27 @@ public class TaskProcessor {
         return totalTasks;
     }
 
-    public void printTasks(){
-        log.info("Total number of tasks created: " + String.valueOf(taskQueue.size()));
+    public void printPhase() {
+        log.info(phase.toString());
+    }
+
+    public int getPendingRequests() {
+        return pendingRequests.get();
+    }
+
+    public void printPendingRequests() {
+        log.info("Current pending requests: " + getPendingRequests());
+    }
+
+    public void printTasksInQueue() {
+        log.info("Total number of tasks in task queue: " + String.valueOf(taskQueue.size()));
+    }
+
+    public void printTaskInfo(){
+        log.info("Total number of tasks created: " + String.valueOf(getTotalTasks()));
+        log.info("Starting tasks in queue before mining: " + String.valueOf(startingTaskQueueBeforeMining.get()));
+        log.info("Total number of tasks in task queue: " + String.valueOf(taskQueue.size()));
+        log.info("Total number of tasks in excess queue: " + String.valueOf(excessQueue.size()));
+        log.info("Network task sum: " + String.valueOf(networkTaskSum.get()));
     }
 }

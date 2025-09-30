@@ -2,12 +2,12 @@ package csx55.wireformats;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.logging.*;
 
 import csx55.hashing.Task;
@@ -49,6 +49,12 @@ public class EventFactory {
                     return readTaskRequest(messageType, dis);
                 case Protocol.TASK_RESPONSE:
                     return readTaskResponse(messageType, dis);
+                case Protocol.TASK_COMPLETE:
+                    return readTaskComplete(messageType, dis);
+                case Protocol.PULL_TRAFFIC_SUMMARY:
+                    return new TaskSummaryRequest(messageType);
+                case Protocol.TRAFFIC_SUMMARY:
+                    return readTaskSummaryResponse(messageType, dis);
                 default:
                     break;
             }
@@ -57,6 +63,23 @@ public class EventFactory {
             log.warning("Exception while creating event..." + e.getMessage());
         }
         return null;
+    }
+
+    private static TaskSummaryResponse readTaskSummaryResponse(int messageType, DataInputStream dis) throws IOException {
+        int serverPort = dis.readInt();
+        int generatedTasks = dis.readInt();
+        int pulledTasks = dis.readInt();
+        int pushedTasks = dis.readInt();
+        int completedTasks = dis.readInt();
+        float workloadPercentage = dis.readFloat();
+        TaskSummaryResponse summaryResponse = new TaskSummaryResponse(messageType, serverPort, generatedTasks, pulledTasks, pushedTasks, completedTasks, workloadPercentage);
+        return summaryResponse;
+    }
+
+    private static TaskComplete readTaskComplete(int messageType, DataInputStream dis) throws IOException {
+        String ip = readString(dis);
+        int port = dis.readInt();
+        return new TaskComplete(messageType, ip, port);
     }
 
     private static TaskResponse readTaskResponse(int messageType, DataInputStream dis) throws IOException {
@@ -82,7 +105,10 @@ public class EventFactory {
         String ip = readString(dis);
         int port = dis.readInt();
         int numTasksRequested = dis.readInt();
-        return new TaskRequest(messageType, new NodeID(ip, port), numTasksRequested);
+        int ttl = dis.readInt();
+        String uuidString = readString(dis);
+        UUID uuid = UUID.fromString(uuidString);
+        return new TaskRequest(messageType, new NodeID(ip, port), numTasksRequested, ttl, uuid);
     }
 
     private static TaskSum readTaskSum(int messageType, DataInputStream dis) throws IOException {

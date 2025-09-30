@@ -13,7 +13,6 @@ public class OverlayCreator {
 
     private List<NodeID> nodes;
     private Map<NodeID, List<NodeID>> overlay = new ConcurrentHashMap<>();
-    private Map<NodeID, List<NodeID>> connectionMap = new ConcurrentHashMap<>();
 
     public OverlayCreator(){}
 
@@ -27,23 +26,8 @@ public class OverlayCreator {
         for(int i = 0; i < n; i++) {
             overlay.put(nodes.get(i), new ArrayList<>());
             overlay.get(nodes.get(i)).add(nodes.get((i+1) % n));
-            overlay.get(nodes.get(i)).add(nodes.get((i-1+n) % n));
         }
         return overlay;
-    }
-
-    public Map<NodeID, List<NodeID>> filter(Map<NodeID, List<NodeID>> overlay) {
-        log.info("Filtering overlay...");
-        for(Map.Entry<NodeID, List<NodeID>> entry : overlay.entrySet()){
-            List<NodeID> filtered = new ArrayList<>();
-            for(NodeID id : entry.getValue()){
-                if(entry.getKey().compareTo(id) < 0){
-                    filtered.add(id);
-                }
-            }
-            connectionMap.put(entry.getKey(), filtered);
-        }
-        return connectionMap;
     }
     
 }
