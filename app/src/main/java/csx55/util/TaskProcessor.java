@@ -123,9 +123,6 @@ public class TaskProcessor {
                         }
                         if(tasksCompleted.get() == numTasksToComplete.get()) {
                             log.info("DONE");
-                            if(excessQueue.size() > 0){
-                                drainExcessQueue();
-                            }
                             phase.set(Phase.DONE);
                             try {
                                 TaskComplete tc = new TaskComplete(Protocol.TASK_COMPLETE, node.myNode.getIP(), node.myNode.getPort());
@@ -144,11 +141,14 @@ public class TaskProcessor {
         }
     }
 
-    private void drainExcessQueue(){
+    public void drainExcessQueue(){
         for(Task t : excessQueue) {
             taskQueue.add(t);
         }
         phase.set(Phase.PROCESSING);
+        if(taskQueue.size() == 0){
+            phase.set(Phase.DONE);
+        }
     }
 
     public int getTotalTasks() {

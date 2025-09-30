@@ -116,6 +116,9 @@ public class ComputeNode implements Node {
         }
         else if(event.getType() == Protocol.PULL_TRAFFIC_SUMMARY) {
             try {
+                if(processor.excessQueue.size() > 0){
+                    processor.drainExcessQueue();
+                }
                 log.info("Received task summary request from Registry. Sending back requested information...");
                 TaskSummaryResponse response = new TaskSummaryResponse(Protocol.TRAFFIC_SUMMARY, myNode.getPort(), processor.getTotalTasks(), pulledTasks.get(), pushedTasks.get(), processor.tasksCompleted.get(), processor.calculatePercentageOfWork());
                 registryConn.sender.sendData(response.getBytes());
