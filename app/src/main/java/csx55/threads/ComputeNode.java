@@ -93,7 +93,6 @@ public class ComputeNode implements Node {
                 printNetworkTaskSum();
                 processor.completedTaskSumNodes.clear();
                 processor.computeLoadBalancing();
-                processor.phase.set(Phase.PROCESSING);
                 processor.createThreadPool(numThreads);
             }
         }
@@ -157,7 +156,7 @@ public class ComputeNode implements Node {
                     processor.phase.set(Phase.DONE);
                 }
             } else {
-                //log.info("Forwarding response for requester " + requester + " to successor " + successorID);
+                log.info("Forwarding response for requester " + requester + " to successor " + successorID);
                 forwardMessage(response.getBytes());
             }
         }catch(IOException e) {
@@ -197,7 +196,7 @@ public class ComputeNode implements Node {
                     forwardMessage(response.getBytes());
                 }
             } else { // I dont have tasks to give
-                //log.info("Forwarding request " + uuid + " to successor " + successorID + " with TTL " + request.ttl);
+                log.info("Forwarding request " + uuid + " to successor " + successorID);
                 request.ttl -= 1;
                 forwardMessage(request.getBytes());
             }
@@ -353,7 +352,7 @@ public class ComputeNode implements Node {
 
     public static void main(String[] args) {
 
-        LogConfig.init(Level.INFO);
+        LogConfig.init(Level.WARNING);
         ComputeNode node = new ComputeNode(args[0], Integer.parseInt(args[1]));
         new Thread(node::startNode, "Node-" + node.toString() + "-Server").start();
         new Thread(node::readTerminal, "Node-" + node.toString() + "-Terminal").start();

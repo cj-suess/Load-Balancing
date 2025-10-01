@@ -8,11 +8,10 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import csx55.hashing.Miner;
@@ -108,31 +107,36 @@ public class TaskProcessor {
         totalTasks = taskQueue.size();
     }
 
-    public void createThreadPool(int numThreads) {
+    private AtomicLong startTime = new AtomicLong(0);
+    public void createThreadPool(int numThreads) { //// NEED TO FIGURE OUT WHY AN UNLUCKY NODE GETS SLOWED DOWN WHEN OTHERS DONT
         for(int i = 0; i < numThreads; i++){
             Thread thread = new Thread(() -> {
                 Miner miner = new Miner();
                 try {
                     while(!stop()) {
-                        Task t = taskQueue.poll(10, TimeUnit.MILLISECONDS);
+                        Task t = taskQueue.poll(100, TimeUnit.MILLISECONDS);
                         if(t==null) {
                             node.checkForLoadBalancing();
                             continue;
                         }
+                        startTime.compareAndSet(0, System.nanoTime());
                         try {
                             tasksBeingMined.incrementAndGet();
                             miner.mine(t);
                             tasksCompleted.incrementAndGet();
-                            log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
-                            // if (tasksCompleted.get() % 100 == 0) {
-                            //     log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
-                            // }
+                            // log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
+                            if (tasksCompleted.get() % 10 == 0) {
+                                log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
+                            }
                         } finally {
                             tasksBeingMined.decrementAndGet();
                         }
                         if(tasksCompleted.get() == numTasksToComplete.get()) {
-                            log.info("DONE");
-                            phase.set(Phase.LOAD_BALANCE);
+                            long endTime = System.nanoTime();
+                            long durationNanos = endTime - startTime.get();
+                            long durationSeconds = TimeUnit.NANOSECONDS.toSeconds(durationNanos);
+                            log.info("DONE! Total mining time: " + durationSeconds + " s");
+                            // phase.compareAndSet(Phase.PROCESSING, Phase.DONE);
                             try {
                                 TaskComplete tc = new TaskComplete(Protocol.TASK_COMPLETE, node.myNode.getIP(), node.myNode.getPort());
                                 node.registryConn.sender.sendData(tc.getBytes());
