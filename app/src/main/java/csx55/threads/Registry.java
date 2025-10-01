@@ -66,11 +66,11 @@ public class Registry implements Node {
     private void printSummaryReport() {
         for(Map.Entry<String, List<Float>> entry : summaryReport.entrySet()){
             if(!entry.getKey().equals("sum")) {
-                System.out.printf(entry.getKey() + " %.0f %.0f %.0f %.0f %.7f\n", entry.getValue().get(0), entry.getValue().get(1), entry.getValue().get(2), entry.getValue().get(3), entry.getValue().get(4) * 100);
+                System.out.printf(entry.getKey() + " %.0f %.0f %.0f %.0f %.8f\n", entry.getValue().get(0), entry.getValue().get(1), entry.getValue().get(2), entry.getValue().get(3), entry.getValue().get(4) * 100);
             }
         }
         if(summaryReport.containsKey("sum")){
-            System.out.printf("Total %.0f %.0f %.0f %.0f %.0f", summaryReport.get("sum").get(0), summaryReport.get("sum").get(1), summaryReport.get("sum").get(2), summaryReport.get("sum").get(0), summaryReport.get("sum").get(4) * 100);
+            System.out.printf("Total %.0f %.0f %.0f %.0f %.0f", summaryReport.get("sum").get(0), summaryReport.get("sum").get(1), summaryReport.get("sum").get(2), summaryReport.get("sum").get(3), summaryReport.get("sum").get(4) * 100);
         }
     }
 
@@ -278,7 +278,7 @@ public class Registry implements Node {
     }
 
     public static void main(String[] args) {
-        LogConfig.init(Level.INFO);
+        LogConfig.init(Level.WARNING);
         Registry reg = new Registry(Integer.parseInt(args[0]));
         new Thread(reg::startRegistry).start();
         new Thread(reg::readTerminal).start();

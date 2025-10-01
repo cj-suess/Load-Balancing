@@ -14,7 +14,7 @@
 
 # list your hosts here, e.g., HOSTS=("carrot" "broccoli")
 # visit https://www.cs.colostate.edu/machinestats/ for a list of machines you can use
-HOSTS=("madrid" "moscow" "denver" "tuna") # "venus" "mars" "venus" "beijing" "turbot" "cod" "leek" "lettuce" "okra" "berlin" "yam" "cairo"
+HOSTS=("madrid" "moscow" "denver" "tuna" "venus" "mars" "venus" "beijing" "turbot" "cod" "leek" "lettuce" "okra" "berlin" "yam" "cairo") # "venus" "mars" "venus" "beijing" "turbot" "cod" "leek" "lettuce" "okra" "berlin" "yam" "cairo"
 
 # path to your project directory, e.g., "~/cs455/hw1"
 DIR="/s/chopin/g/under/camsuess/Desktop/dev/cs555/hw2"

@@ -91,7 +91,7 @@ public class ComputeNode implements Node {
             }
             if(processor.completedTaskSumNodes.size() == processor.totalNumRegisteredNodes.get()) {
                 printNetworkTaskSum();
-                processor.completedTaskSumNodes.clear();
+                // processor.completedTaskSumNodes.clear();
                 processor.computeLoadBalancing();
                 processor.createThreadPool(numThreads);
             }
@@ -119,10 +119,11 @@ public class ComputeNode implements Node {
                 if(processor.excessQueue.size() > 0 || processor.taskQueue.size() > 0){
                     processor.drainQueues();
                 }
+                Thread.sleep(5000);
                 log.info("Received task summary request from Registry. Sending back requested information...");
                 TaskSummaryResponse response = new TaskSummaryResponse(Protocol.TRAFFIC_SUMMARY, myNode.getPort(), processor.getTotalTasks(), pulledTasks.get(), pushedTasks.get(), processor.tasksCompleted.get(), processor.calculatePercentageOfWork());
                 registryConn.sender.sendData(response.getBytes());
-            } catch(IOException e) {
+            } catch(IOException | InterruptedException e) {
                 log.warning("Exception while sending TaskSummaryReport to Registry...." + e.getMessage());
             }
         }
@@ -145,7 +146,7 @@ public class ComputeNode implements Node {
                 log.info("Received a response with " + response.tasks.size() + " tasks.");
                 if(processor.phase.compareAndSet(Phase.LOAD_BALANCE, Phase.PROCESSING)) {
                     log.info("State is LOAD_BALANCE. Accepting tasks and returning to PROCESSING.");
-                    pulledTasks.incrementAndGet();
+                    pulledTasks.addAndGet(response.tasks.size());
                     processor.taskQueue.addAll(response.tasks);
                     processor.pendingRequests.decrementAndGet();
                 } else {
@@ -180,7 +181,7 @@ public class ComputeNode implements Node {
                 int amountToGive = Math.min(request.numTasksRequested, processor.excessQueue.size());
 
                 log.info("Fulfilling request from " + requester + ", Sending: " + amountToGive);
-                pushedTasks.incrementAndGet();
+                pushedTasks.addAndGet(amountToGive);
                 for (int i = 0; i < amountToGive; i++) {
                     Task task = processor.excessQueue.poll();
                     if (task != null) {
@@ -352,7 +353,7 @@ public class ComputeNode implements Node {
 
     public static void main(String[] args) {
 
-        LogConfig.init(Level.INFO);
+        LogConfig.init(Level.WARNING);
         ComputeNode node = new ComputeNode(args[0], Integer.parseInt(args[1]));
         new Thread(node::startNode, "Node-" + node.toString() + "-Server").start();
         new Thread(node::readTerminal, "Node-" + node.toString() + "-Terminal").start();
