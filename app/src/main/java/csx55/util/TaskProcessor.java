@@ -108,7 +108,7 @@ public class TaskProcessor {
     }
 
     private AtomicLong startTime = new AtomicLong(0);
-    public void createThreadPool(int numThreads) { //// NEED TO FIGURE OUT WHY AN UNLUCKY NODE GETS SLOWED DOWN WHEN OTHERS DONT
+    public void createThreadPool(int numThreads) {
         for(int i = 0; i < numThreads; i++){
             Thread thread = new Thread(() -> {
                 Miner miner = new Miner();
@@ -123,10 +123,12 @@ public class TaskProcessor {
                         try {
                             tasksBeingMined.incrementAndGet();
                             miner.mine(t);
+                            System.out.println(t.toString());
+                            Thread.yield();
                             tasksCompleted.incrementAndGet();
                             // log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
                             if (tasksCompleted.get() % 10 == 0) {
-                                log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
+                                // log.info("Tasks mined: " + tasksCompleted.get() + "/" + numTasksToComplete.get());
                             }
                         } finally {
                             tasksBeingMined.decrementAndGet();

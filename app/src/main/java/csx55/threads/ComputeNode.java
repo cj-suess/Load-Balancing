@@ -105,12 +105,12 @@ public class ComputeNode implements Node {
             sendTaskSum();
         }
         else if(event.getType() == Protocol.TASK_REQUEST) {
-            // log.info("Received task request...");
+            log.info("Received task request...");
             TaskRequest request = (TaskRequest) event;
             handleTaskRequest(request, socket);
         }
         else if(event.getType() == Protocol.TASK_RESPONSE) {
-            // log.info("Received task repsonse...");
+            log.info("Received task repsonse...");
             TaskResponse response = (TaskResponse) event;
             handleTaskResponse(response, socket);
         }
@@ -119,7 +119,7 @@ public class ComputeNode implements Node {
                 if(processor.excessQueue.size() > 0 || processor.taskQueue.size() > 0){
                     processor.drainQueues();
                 }
-                //log.info("Received task summary request from Registry. Sending back requested information...");
+                log.info("Received task summary request from Registry. Sending back requested information...");
                 TaskSummaryResponse response = new TaskSummaryResponse(Protocol.TRAFFIC_SUMMARY, myNode.getPort(), processor.getTotalTasks(), pulledTasks.get(), pushedTasks.get(), processor.tasksCompleted.get(), processor.calculatePercentageOfWork());
                 registryConn.sender.sendData(response.getBytes());
             } catch(IOException e) {
@@ -352,7 +352,7 @@ public class ComputeNode implements Node {
 
     public static void main(String[] args) {
 
-        LogConfig.init(Level.WARNING);
+        LogConfig.init(Level.INFO);
         ComputeNode node = new ComputeNode(args[0], Integer.parseInt(args[1]));
         new Thread(node::startNode, "Node-" + node.toString() + "-Server").start();
         new Thread(node::readTerminal, "Node-" + node.toString() + "-Terminal").start();

@@ -70,7 +70,7 @@ public class Registry implements Node {
             }
         }
         if(summaryReport.containsKey("sum")){
-            System.out.printf("sum %.0f %.0f %.0f %.0f %.0f", summaryReport.get("sum").get(0), summaryReport.get("sum").get(1), summaryReport.get("sum").get(2), summaryReport.get("sum").get(0), summaryReport.get("sum").get(4) * 100);
+            System.out.printf("Total %.0f %.0f %.0f %.0f %.0f", summaryReport.get("sum").get(0), summaryReport.get("sum").get(1), summaryReport.get("sum").get(2), summaryReport.get("sum").get(0), summaryReport.get("sum").get(4) * 100);
         }
     }
 
@@ -278,7 +278,7 @@ public class Registry implements Node {
     }
 
     public static void main(String[] args) {
-        LogConfig.init(Level.WARNING);
+        LogConfig.init(Level.INFO);
         Registry reg = new Registry(Integer.parseInt(args[0]));
         new Thread(reg::startRegistry).start();
         new Thread(reg::readTerminal).start();
