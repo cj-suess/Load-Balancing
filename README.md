@@ -6,3 +6,5 @@ This program leverages thread pools in a distributed environment to alleviate co
 3. An overlay is created using a ring topology and applied to the registered nodes
 4. The Compute nodes randomly generate tasks (between 1 and 1000) for each round specified by the Registry
 5. Load balancing is performed amongst the Compute nodes themselves to distribute excess tasks from overloaded nodes to underloaded nodes
+6. All marshalling/unmarshalling for Events are done manually to be sent over TCP connections
+7. All TCP connections are established manually
