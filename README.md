@@ -1,1 +1,2 @@
-# CS555-HW2
+# Load Balancing
+Distributed Load Balancing of Computational Tasks Using Thread Pools
